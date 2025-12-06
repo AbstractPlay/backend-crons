@@ -1,0 +1,99 @@
+diff --git a/node_modules/svgdom/src/dom/html/HTMLImageElement.js b/node_modules/svgdom/src/dom/html/HTMLImageElement.js
+index f0b69c2..5268dea 100644
+--- a/node_modules/svgdom/src/dom/html/HTMLImageElement.js
++++ b/node_modules/svgdom/src/dom/html/HTMLImageElement.js
+@@ -1,54 +1,64 @@
+-import sizeOf from 'image-size'
+-import { Event } from '../Event.js'
+-import { HTMLElement } from './HTMLElement.js'
+-// import { getFileBufferFromURL } from '../../utils/fileUrlToBuffer.js'
+-// import path from 'path'
++import sharp from 'sharp';
++import { Event } from '../Event.js';
++import { HTMLElement } from './HTMLElement.js';
+ 
+ export class HTMLImageElement extends HTMLElement {
+   constructor (...args) {
+-    super(...args)
+-    this.naturalWidth = 0
+-    this.naturalHeight = 0
+-    this.complete = false
++    super(...args);
++    this.naturalWidth = 0;
++    this.naturalHeight = 0;
++    this.complete = false;
+   }
+ }
+ 
+ Object.defineProperties(HTMLImageElement.prototype, {
+   src: {
+     get () {
+-      return this.getAttribute('src')
++      return this.getAttribute('src');
+     },
+-    set (val) {
+-      this.setAttribute('src', val)
+-      // const url = path.resolve(this.ownerDocument.defaultView.location, val)
+-      // getFileBufferFromURL(url, (buffer) => {
+-      sizeOf(val, (err, size) => {
+-        if (err) {
+-          this.dispatchEvent(new Event('error'))
+-          return
++    async set (val) {
++      this.setAttribute('src', val);
++
++      try {
++        let buffer;
++
++        if (typeof val === 'string' && /^https?:\/\//.test(val)) {
++          // Remote URL: fetch and convert to Buffer
++          const res = await fetch(val);
++          const arrBuf = await res.arrayBuffer();
++          buffer = Buffer.from(arrBuf);
++        } else if (Buffer.isBuffer(val)) {
++          buffer = val;
++        } else {
++          throw new Error('Unsupported src type for HTMLImageElement');
+         }
+-        this.naturalWidth = size.width
+-        this.naturalHeight = size.height
+-        this.complete = true
+-        this.dispatchEvent(new Event('load'))
+-      })
+-      // })
++
++        // Use sharp to extract metadata
++        const metadata = await sharp(buffer).metadata();
++
++        this.naturalWidth = metadata.width || 0;
++        this.naturalHeight = metadata.height || 0;
++        this.complete = true;
++        this.dispatchEvent(new Event('load'));
++      } catch (err) {
++        this.dispatchEvent(new Event('error'));
++      }
+     }
+   },
+   height: {
+     get () {
+-      return this.getAttribute('height') || this.naturalHeight
++      return this.getAttribute('height') || this.naturalHeight;
+     },
+     set (val) {
+-      this.setAttribute('height', val)
++      this.setAttribute('height', val);
+     }
+   },
+   width: {
+     get () {
+-      return this.getAttribute('width') || this.naturalWidth
++      return this.getAttribute('width') || this.naturalWidth;
+     },
+     set (val) {
+-      this.setAttribute('width', val)
++      this.setAttribute('width', val);
+     }
+   }
+-})
++});
+\ No newline at end of file

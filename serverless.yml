@@ -1,0 +1,111 @@
+service: abstract-play-backend-crons
+
+frameworkVersion: "3"
+
+custom:
+  scheduleEnabled:
+    prod: true
+    dev: false
+  recbucket:
+    prod: "records.abstractplay.com"
+    dev: "records.abstractplay.com"
+  dumpbucket: "abstractplay-db-dump"
+  esbuild:
+    tsconfig: "./tsconfig.json"
+    bundle: true
+    sourcemap: true
+    format: "esm"
+    outExtension:
+      ".js": ".mjs"
+    platform: "node"
+    target: "node20"
+    external:
+      - "@abstractplay/gameslib"
+      - "@abstractplay/renderer"
+      - "@aws-sdk/*"
+      - "@smithy/*"
+      - "sharp"
+      - "buffer"
+      - "fs"
+
+params:
+  dev:
+    profile: AbstractPlayDev
+    userpool: arn:aws:cognito-idp:us-east-1:153672715141:userpool/us-east-1_2zrzbEjoU
+    sqsurl: https://sqs.us-east-1.amazonaws.com/153672715141/abstractplay-aiai-dev-aiai-queue
+  prod:
+    profile: AbstractPlayProd
+    userpool: arn:aws:cognito-idp:us-east-1:153672715141:userpool/us-east-1_YCjgSZHJm
+    sqsurl: https://sqs.us-east-1.amazonaws.com/153672715141/abstractplay-aiai-prod-aiai-queue
+
+plugins:
+  - serverless-esbuild
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  versionFunctions: false
+  stage: ${opt:stage, "dev"}
+  profile: ${param:profile}
+  region: us-east-1
+  environment:
+    ABSTRACT_PLAY_TABLE: abstract-play-${self:provider.stage}
+    userpool: ${param:userpool}
+    SQS_URL: ${param:sqsurl}
+    AIAI_USERID: SkQfHAjeDxs8eeEnScuYA
+    # TOTP_KEY: ${env:TOTP_KEY}
+    # VAPID_PRIVATE_KEY: ${env:VAPID_PRIVATE_KEY}
+    # VAPID_PUBLIC_KEY: ${env:VAPID_PUBLIC_KEY}
+    TOTP_KEY: ${file(../apsecrets.yml):totp_key}
+    VAPID_PRIVATE_KEY: ${file(../apsecrets.yml):vapid_private_key}
+    VAPID_PUBLIC_KEY: ${file(../apsecrets.yml):vapid_public_key}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:ExportTableToPointInTime
+            - dynamodb:BatchWriteItem
+            - ses:SendEmail
+            - ses:SendRawEmail
+            - cloudfront:CreateInvalidation
+          Resource: "*"
+        - Effect: "Allow"
+          Action:
+            - "s3:ListBucket"
+          Resource:
+            - "arn:aws:s3:::abstractplay-db-dump"
+            - "arn:aws:s3:::records.abstractplay.com"
+        - Effect: "Allow"
+          Action:
+            - "s3:GetObject"
+          Resource: "arn:aws:s3:::abstractplay-db-dump/*"
+        - Effect: "Allow"
+          Action:
+            - "s3:PutObject"
+          Resource:
+            - "arn:aws:s3:::records.abstractplay.com/*"
+            - "arn:aws:s3:::thumbnails.abstractplay.com/*"
+            - "arn:aws:s3:::abstractplay-db-dump/*"
+
+functions:
+  thumbnails:
+    handler: src/functions/thumbnails.handler
+    description: Generates random thumbnails daily
+    timeout: 900
+    memorySize: 10240
+    layers:
+      - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-thumbnails
+          description: Generates random thumbnails daily
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 6am UTC daily (giving record generation plenty of time to complete)
+          schedule: cron(0 6 * * ? *)
