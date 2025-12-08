@@ -9,6 +9,9 @@ custom:
   recbucket:
     prod: "records.abstractplay.com"
     dev: "records.abstractplay.com"
+  renderbucket:
+    prod: "thumbnails-prerender-prod"
+    dev: "thumbnails-prerender-dev"
   dumpbucket: "abstractplay-db-dump"
   esbuild:
     tsconfig: "./tsconfig.json"
@@ -20,26 +23,28 @@ custom:
     platform: "node"
     target: "node20"
     external:
-      - "@abstractplay/gameslib"
       - "@abstractplay/renderer"
+      - "@abstractplay/gameslib"
       - "@aws-sdk/*"
       - "@smithy/*"
       - "sharp"
       - "buffer"
       - "fs"
+  scriptable:
+    hooks:
+      before:package:createDeploymentArtifacts: npm run postinstall
 
 params:
   dev:
     profile: AbstractPlayDev
     userpool: arn:aws:cognito-idp:us-east-1:153672715141:userpool/us-east-1_2zrzbEjoU
-    sqsurl: https://sqs.us-east-1.amazonaws.com/153672715141/abstractplay-aiai-dev-aiai-queue
   prod:
     profile: AbstractPlayProd
     userpool: arn:aws:cognito-idp:us-east-1:153672715141:userpool/us-east-1_YCjgSZHJm
-    sqsurl: https://sqs.us-east-1.amazonaws.com/153672715141/abstractplay-aiai-prod-aiai-queue
 
 plugins:
   - serverless-esbuild
+  - serverless-scriptable-plugin
 
 provider:
   name: aws
@@ -48,11 +53,12 @@ provider:
   stage: ${opt:stage, "dev"}
   profile: ${param:profile}
   region: us-east-1
+  logs:
+    retentionInDays: 30   # set to any valid retention period (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653)
   environment:
     ABSTRACT_PLAY_TABLE: abstract-play-${self:provider.stage}
     userpool: ${param:userpool}
-    SQS_URL: ${param:sqsurl}
-    AIAI_USERID: SkQfHAjeDxs8eeEnScuYA
+    SQS_URL: !Ref RenderQueue
     # TOTP_KEY: ${env:TOTP_KEY}
     # VAPID_PRIVATE_KEY: ${env:VAPID_PRIVATE_KEY}
     # VAPID_PUBLIC_KEY: ${env:VAPID_PUBLIC_KEY}
@@ -72,6 +78,7 @@ provider:
             - dynamodb:DeleteItem
             - dynamodb:ExportTableToPointInTime
             - dynamodb:BatchWriteItem
+            - sqs:SendMessage
             - ses:SendEmail
             - ses:SendRawEmail
             - cloudfront:CreateInvalidation
@@ -82,10 +89,13 @@ provider:
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump"
             - "arn:aws:s3:::records.abstractplay.com"
+            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
-          Resource: "arn:aws:s3:::abstractplay-db-dump/*"
+          Resource:
+            - "arn:aws:s3:::abstractplay-db-dump/*"
+            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
         - Effect: "Allow"
           Action:
             - "s3:PutObject"
@@ -93,15 +103,50 @@ provider:
             - "arn:aws:s3:::records.abstractplay.com/*"
             - "arn:aws:s3:::thumbnails.abstractplay.com/*"
             - "arn:aws:s3:::abstractplay-db-dump/*"
+            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
+        - Effect: "Allow"
+          Action:
+            - "s3:DeleteObject"
+          Resource:
+            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
+
+resources:
+  Resources:
+    RenderQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: abstractplay-render-queue-${self:provider.stage}
+        VisibilityTimeout: 900   # match your consumer Lambda timeout
+        MessageRetentionPeriod: 86400  # 1 day, adjust as needed
+    ThumbnailsPrerenderBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.renderbucket.${self:provider.stage}}
+        # Optional: add lifecycle rules, encryption, etc.
+
+  Outputs:
+    RenderQueueArn:
+      Value: !GetAtt RenderQueue.Arn
+      Export:
+        Name: RenderQueueArn-${self:provider.stage}
+    RenderQueueUrl:
+      Value: !Ref RenderQueue
+      Export:
+        Name: RenderQueueUrl-${self:provider.stage}
+    ThumbnailsPrerenderBucketName:
+      Value: !Ref ThumbnailsPrerenderBucket
+      Export:
+        Name: ThumbnailsPrerenderBucketName-${self:provider.stage}
 
 functions:
   thumbnails:
     handler: src/functions/thumbnails.handler
     description: Generates random thumbnails daily
-    timeout: 900
-    memorySize: 10240
-    layers:
-      - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1
+    timeout: 300
+    memorySize: 5120
+    logRetentionInDays: 7
+    environment:
+      RENDER_BUCKET: ${self:custom.renderbucket.${self:provider.stage}}
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-thumbnails
@@ -109,3 +154,39 @@ functions:
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
           # 6am UTC daily (giving record generation plenty of time to complete)
           schedule: cron(0 6 * * ? *)
+
+  s3-to-sqs:
+    handler: src/functions/s3-to-sqs.handler
+    description: Triggered when new objects are written to S3, pushes job info to SQS
+    timeout: 30
+    memorySize: 512
+    logRetentionInDays: 7
+    environment:
+      TARGET_QUEUE_ARN: !GetAtt RenderQueue.Arn
+      RENDER_BUCKET: ${self:custom.renderbucket.${self:provider.stage}}
+    events:
+      - s3:
+          bucket: ${self:custom.renderbucket.${self:provider.stage}}
+          event: s3:ObjectCreated:*
+          existing: true
+
+  sqs-to-render:
+    handler: src/functions/sqs-to-render.handler
+    description: Consumes SQS messages, renders SVG, writes to output bucket, deletes original
+    timeout: 300
+    # memorySize: 5120
+    logRetentionInDays: 7
+    environment:
+      RENDER_BUCKET: ${self:custom.renderbucket.${self:provider.stage}}
+    layers:
+      - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - RenderQueue
+              - Arn
+
+package:
+  patterns:
+    - fonts/**

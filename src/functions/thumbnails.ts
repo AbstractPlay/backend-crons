@@ -12,17 +12,12 @@ import type { i18n } from "i18next";
 // import enGames from "@abstractplay/gameslib/locales/en/apgames.json";
 import enBack from "../locales/en/apback.json";
 import type { BasicRec, GameRec, StatSummary } from "../types/index.js";
-import { render, addPrefix, IRenderOptions, type APRenderRep } from "@abstractplay/renderer";
-import { Buffer } from "node:buffer";
-import { customAlphabet } from "nanoid";
-const genPrefix = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", 5);
-import { createSVGWindow } from "svgdom";
-import { registerWindow, SVG, Svg } from "@svgdotjs/svg.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
 const DUMP_BUCKET = "abstractplay-db-dump";
 const REC_BUCKET = "thumbnails.abstractplay.com";
+const RENDER_BUCKET = process.env.RENDER_BUCKET;
 const STATS_BUCKET = "records.abstractplay.com";
 const cloudfront = new CloudFrontClient({region: REGION});
 
@@ -204,7 +199,7 @@ export const handler: Handler = async (event: any, context?: any) => {
     //   - Serialize it with the `strip` option to strip out hidden information
     //   - Select a random move between p25 and p75
     //   - Render and store the JSON
-    const allRecs = new Map<string, APRenderRep>();
+    const allRecs = new Map<string, string>();
     for (const [meta, entry] of samplerMap.entries()) {
         const active = entry.active.getSample();
         let rec: GameRec;
@@ -228,7 +223,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             throw new Error(`Error instantiating the following game record AFTER STRIPPING:\n${rec}`);
         }
         const json = g.render({});
-        allRecs.set(meta, json);
+        allRecs.set(meta, JSON.stringify(json));
     }
     console.log(`Generated ${allRecs.size} thumbnails`);
 
@@ -239,67 +234,30 @@ export const handler: Handler = async (event: any, context?: any) => {
         console.log(`${keys.length} production games do not have active or completed game records, and so no thumbnail was generated: ${JSON.stringify(keys)}`);
     }
 
-    // write files to S3
-    // meta games
+    // write files to both S3 buckets
     for (const [meta, json] of allRecs.entries()) {
-        const cmd = new PutObjectCommand({
+        // storage bucket
+        let cmd = new PutObjectCommand({
             Bucket: REC_BUCKET,
             Key: `${meta}.json`,
             Body: JSON.stringify(json),
         });
-        const response = await s3.send(cmd);
+        let response = await s3.send(cmd);
+        if (response["$metadata"].httpStatusCode !== 200) {
+            console.log(response);
+        }
+        // pre-render bucket
+        cmd = new PutObjectCommand({
+            Bucket: RENDER_BUCKET,
+            Key: `${meta}.json`,
+            Body: JSON.stringify(json),
+        });
+        response = await s3.send(cmd);
         if (response["$metadata"].httpStatusCode !== 200) {
             console.log(response);
         }
     }
     console.log("Thumbnails stored");
-
-    // pre-render light/dark SVGs
-    console.log("Attempting to pre-render light/dark SVGs");
-    const contextLight = {
-        background: "#fff",
-        strokes: "#000",
-        borders: "#000",
-        labels: "#000",
-        annotations: "#000",
-        fill: "#000",
-    };
-    const contextDark = {
-        background: "#222",
-        strokes: "#6d6d6d",
-        borders: "#000",
-        labels: "#009fbf",
-        annotations: "#99cccc",
-        fill: "#e6f2f2",
-    };
-    const contexts = new Map<string, {[k: string]: string}>([
-        ["light", contextLight],
-        ["dark", contextDark],
-    ]);
-    const window = createSVGWindow();
-    const document = window.document;
-
-    // register window and document
-    registerWindow(window, document);
-    for (const [meta, json] of allRecs.entries()) {
-        const prefix = genPrefix();
-        for (const [name, context] of contexts.entries()) {
-            const canvas = SVG(document.documentElement) as Svg;
-            const opts: IRenderOptions = {prefix, target: canvas, colourContext: context};
-            render(json as APRenderRep, opts)
-            const svgStr = addPrefix(canvas.svg(), opts);
-            const cmd = new PutObjectCommand({
-                Bucket: REC_BUCKET,
-                Key: `${meta}-${name}.svg`,
-                Body: svgStr,
-            });
-            const response = await s3.send(cmd);
-            if (response["$metadata"].httpStatusCode !== 200) {
-                console.log(response);
-            }
-        }
-    }
-    console.log("Pre-rendering complete")
 
     // invalidate CloudFront distribution
     const cfParams: CreateInvalidationCommandInput = {
