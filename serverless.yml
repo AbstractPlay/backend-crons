@@ -9,9 +9,7 @@ custom:
   recbucket:
     prod: "records.abstractplay.com"
     dev: "records.abstractplay.com"
-  renderbucket:
-    prod: "thumbnails-prerender-prod"
-    dev: "thumbnails-prerender-dev"
+  renderBucketName: "thumbnails-prerender-${self:provider.stage}"
   dumpbucket: "abstractplay-db-dump"
   esbuild:
     tsconfig: "./tsconfig.json"
@@ -89,13 +87,13 @@ provider:
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump"
             - "arn:aws:s3:::records.abstractplay.com"
-            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
+            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump/*"
-            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
+            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
         - Effect: "Allow"
           Action:
             - "s3:PutObject"
@@ -103,12 +101,12 @@ provider:
             - "arn:aws:s3:::records.abstractplay.com/*"
             - "arn:aws:s3:::thumbnails.abstractplay.com/*"
             - "arn:aws:s3:::abstractplay-db-dump/*"
-            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
+            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
         - Effect: "Allow"
           Action:
             - "s3:DeleteObject"
           Resource:
-            - !Sub arn:aws:s3:::${self:custom.renderbucket.${self:provider.stage}}/*
+            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
 
 resources:
   Resources:
@@ -118,11 +116,6 @@ resources:
         QueueName: abstractplay-render-queue-${self:provider.stage}
         VisibilityTimeout: 900   # match your consumer Lambda timeout
         MessageRetentionPeriod: 86400  # 1 day, adjust as needed
-    ThumbnailsPrerenderBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: ${self:custom.renderbucket.${self:provider.stage}}
-        # Optional: add lifecycle rules, encryption, etc.
 
   Outputs:
     RenderQueueArn:
@@ -133,10 +126,6 @@ resources:
       Value: !Ref RenderQueue
       Export:
         Name: RenderQueueUrl-${self:provider.stage}
-    ThumbnailsPrerenderBucketName:
-      Value: !Ref ThumbnailsPrerenderBucket
-      Export:
-        Name: ThumbnailsPrerenderBucketName-${self:provider.stage}
 
 functions:
   thumbnails:
@@ -146,7 +135,7 @@ functions:
     memorySize: 5120
     logRetentionInDays: 7
     environment:
-      RENDER_BUCKET: ${self:custom.renderbucket.${self:provider.stage}}
+      RENDER_BUCKET: ${self:custom.renderBucketName}
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-thumbnails
@@ -163,21 +152,21 @@ functions:
     logRetentionInDays: 7
     environment:
       TARGET_QUEUE_ARN: !GetAtt RenderQueue.Arn
-      RENDER_BUCKET: ${self:custom.renderbucket.${self:provider.stage}}
+      RENDER_BUCKET: ${self:custom.renderBucketName}
     events:
       - s3:
-          bucket: ${self:custom.renderbucket.${self:provider.stage}}
-          event: s3:ObjectCreated:*
+          bucket: ${self:custom.renderBucketName}
           existing: true
+          event: s3:ObjectCreated:*
 
   sqs-to-render:
     handler: src/functions/sqs-to-render.handler
     description: Consumes SQS messages, renders SVG, writes to output bucket, deletes original
-    timeout: 300
+    # timeout: 300
     # memorySize: 5120
     logRetentionInDays: 7
     environment:
-      RENDER_BUCKET: ${self:custom.renderbucket.${self:provider.stage}}
+      RENDER_BUCKET: ${self:custom.renderBucketName}
     layers:
       - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1
     events:
