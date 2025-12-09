@@ -87,7 +87,7 @@ provider:
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump"
             - "arn:aws:s3:::records.abstractplay.com"
-            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
+            - "arn:aws:s3:::${self:custom.renderBucketName}"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
