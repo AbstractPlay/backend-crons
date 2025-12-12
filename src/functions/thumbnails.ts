@@ -26,7 +26,7 @@ type SamplerEntry = {
     completed: ReservoirSampler<GameRec>;
 }
 
-const broken: string[] = ["oware", "toguz"];
+const broken: string[] = [];
 
 export const handler: Handler = async (event: any, context?: any) => {
   const i18nInstance = i18next as unknown as i18n;

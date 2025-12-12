@@ -34,19 +34,19 @@
     "@aws-sdk/client-ses": "^3.321.1",
     "@aws-sdk/client-sqs": "^3.946.0",
     "@aws-sdk/lib-dynamodb": "^3.321.1",
+    "@sparticuz/chromium": "^143.0.0",
     "@sunknudsen/totp": "^1.1.0",
     "aws-lambda": "^1.0.7",
     "fflate": "^0.8.1",
     "i18next": "^22.4.15",
     "ion-js": "^5.2.0",
-    "sharp": "^0.34.5",
-    "svgdom": "^0.1.22"
+    "puppeteer-core": "^24.33.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@aws-sdk/types": "^3.310.0",
     "@types/aws-lambda": "^8.10.115",
     "@types/node": "^18.16.3",
-    "@types/svgdom": "^0.1.2",
     "@types/uuid": "^9.0.1",
     "@types/web-push": "^3.3.2",
     "@typescript-eslint/eslint-plugin": "^5.59.1",

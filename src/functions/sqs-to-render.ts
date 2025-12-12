@@ -11,11 +11,11 @@ import { render, addPrefix, IRenderOptions, type APRenderRep } from "@abstractpl
 import { Buffer } from "node:buffer";
 import { customAlphabet } from "nanoid";
 const genPrefix = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", 5);
-import { createSVGWindow } from "svgdom";
-import { registerWindow, SVG, Svg } from "@svgdotjs/svg.js";
+import puppeteer, { Browser } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 const s3 = new S3Client({});
-const REC_BUCKET = "thumbnails.abstractplay.com";
+const THUMB_BUCKET = "thumbnails.abstractplay.com";
 
 // Helper to stream S3 object into a string
 async function streamToString(stream: Readable): Promise<string> {
@@ -27,8 +27,30 @@ async function streamToString(stream: Readable): Promise<string> {
   });
 }
 
+let browser: Browser | null = null;
+
 export const handler = async (event: SQSEvent): Promise<void> => {
   console.log("Received SQS event:", JSON.stringify(event, null, 2));
+
+  if (!browser) {
+    browser = await puppeteer.launch({
+      args: [
+        ...chromium.args,
+        '--disable-dev-shm-usage',   // avoid /dev/shm issues in Lambda
+        '--disable-gpu',             // no GPU in Lambda
+        '--single-process',          // reduce overhead
+        '--no-zygote',               // skip zygote process
+        '--no-sandbox',              // sandbox not needed in Lambda
+    ],
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
+  }
+  if (browser === null) {
+    throw new Error("Unable to instantiate browser.");
+  } else {
+    console.log("Browser initiated.");
+  }
 
   for (const record of event.Records) {
     const { bucket, key } = JSON.parse(record.body) as { bucket: string; key: string };
@@ -38,7 +60,15 @@ export const handler = async (event: SQSEvent): Promise<void> => {
     const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const data = await streamToString(obj.Body as Readable);
     console.log(`Fetched the following JSON:\n${data}`);
-    const aprender = JSON.parse(JSON.parse(data)) as APRenderRep;
+    let aprender: APRenderRep;
+    if (typeof(data) === "string") {
+        aprender = JSON.parse(data) as APRenderRep;
+        if (typeof(aprender) === "string") {
+            aprender = JSON.parse(aprender) as APRenderRep;
+        }
+    } else {
+        aprender = data as APRenderRep;
+    }
     console.log(`Result after parsing:\n${JSON.stringify(aprender)}`);
 
     // pre-render light/dark SVGs
@@ -63,36 +93,48 @@ export const handler = async (event: SQSEvent): Promise<void> => {
         ["light", contextLight],
         ["dark", contextDark],
     ]);
-    const window = createSVGWindow();
-    const document = window.document;
 
-    // register window and document
-    registerWindow(window, document);
+    const page = await browser.newPage();
+    await page.setViewport({ width: 800, height: 600 });
     const prefix = genPrefix();
     for (const [name, context] of contexts.entries()) {
-        console.log(JSON.stringify({name, context}))
-        const canvas = SVG(document.documentElement) as Svg;
-        const opts: IRenderOptions = {prefix, target: canvas, colourContext: context};
-        console.log(`About to try rendering the following:\n${JSON.stringify(aprender)}`);
-        console.log(`typeof aprender: ${typeof aprender}`);
-        render(aprender, opts)
-        const svgStr = addPrefix(canvas.svg(), opts);
-        console.log(`svgstr:\n${svgStr}`);
-        const cmd = new PutObjectCommand({
-            Bucket: REC_BUCKET,
-            Key: `${meta}-${name}.svg`,
-            Body: svgStr,
-            ContentType: "image/svg+xml",
+        console.log("Initializing page");
+        await page.setContent(`<div id="drawing"></div>`);
+        await page.addScriptTag({ url: "https://renderer.dev.abstractplay.com/APRender.min.js" });
+        console.log("Evaluating the render itself")
+        await page.evaluate((prefix, context, aprender) => {
+            const opts: IRenderOptions = {prefix, divid: "drawing", colourContext: context};
+            (window as any).APRender.render(aprender, opts)
+        }, prefix, context, aprender);
+        console.log("Evaluating the SVG extraction")
+        const svgString = await page.evaluate(() => {
+            const svgEl = document.querySelector('svg');
+            return svgEl ? svgEl.outerHTML : null;
         });
-        const response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
-        }
-        console.log(`Rendered SVG written to ${REC_BUCKET}/${meta}-${name}.svg`);
-    }
+        if (svgString !== null) {
+            console.log("Prefixing the SVG")
+            const prefixed = addPrefix(svgString, {prefix});
+            console.log("Escaping nonbreaking spaces");
+            const safeSvg = prefixed.replace(/&nbsp;/g, '&#160;');
+            const cmd = new PutObjectCommand({
+                Bucket: THUMB_BUCKET,
+                Key: `${meta}-${name}.svg`,
+                Body: safeSvg,
+                ContentType: "image/svg+xml",
+            });
+            const response = await s3.send(cmd);
+            if (response["$metadata"].httpStatusCode !== 200) {
+                console.log(response);
+            }
+            console.log(`Rendered SVG written to ${THUMB_BUCKET}/${meta}-${name}.svg`);
 
-    // Delete original file
-    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-    console.log(`Deleted original file ${bucket}/${key}`);
+            // Delete original file
+            await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+            console.log(`Deleted original file ${bucket}/${key}`);
+        } else {
+            console.log("No SVG was generated!");
+        }
+    }
+    page.close();
   }
 };
