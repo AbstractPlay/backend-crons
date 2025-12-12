@@ -26,6 +26,8 @@ type SamplerEntry = {
     completed: ReservoirSampler<GameRec>;
 }
 
+const broken: string[] = ["oware", "toguz"];
+
 export const handler: Handler = async (event: any, context?: any) => {
   const i18nInstance = i18next as unknown as i18n;
   await (i18nInstance
@@ -197,7 +199,6 @@ export const handler: Handler = async (event: any, context?: any) => {
     // We now have a list of random records for each game. For each one:
     //   - Instantiate
     //   - Serialize it with the `strip` option to strip out hidden information
-    //   - Select a random move between p25 and p75
     //   - Render and store the JSON
     const allRecs = new Map<string, string>();
     for (const [meta, entry] of samplerMap.entries()) {
@@ -246,15 +247,17 @@ export const handler: Handler = async (event: any, context?: any) => {
         if (response["$metadata"].httpStatusCode !== 200) {
             console.log(response);
         }
-        // pre-render bucket
-        cmd = new PutObjectCommand({
-            Bucket: RENDER_BUCKET,
-            Key: `${meta}.json`,
-            Body: JSON.stringify(json),
-        });
-        response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
+        // pre-render bucket (except for broken games)
+            if (!broken.includes(meta)) {
+            cmd = new PutObjectCommand({
+                Bucket: RENDER_BUCKET,
+                Key: `${meta}.json`,
+                Body: JSON.stringify(json),
+            });
+            response = await s3.send(cmd);
+            if (response["$metadata"].httpStatusCode !== 200) {
+                console.log(response);
+            }
         }
     }
     console.log("Thumbnails stored");
