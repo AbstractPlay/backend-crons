@@ -128,13 +128,15 @@ export const handler = async (event: SQSEvent): Promise<void> => {
             }
             console.log(`Rendered SVG written to ${THUMB_BUCKET}/${meta}-${name}.svg`);
 
-            // Delete original file
-            await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-            console.log(`Deleted original file ${bucket}/${key}`);
         } else {
             console.log("No SVG was generated!");
         }
     }
-    page.close();
+
+    // Delete original file
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    console.log(`Deleted original file ${bucket}/${key}`);
+
+    await page.close();
   }
 };
