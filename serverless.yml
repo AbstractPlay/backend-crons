@@ -162,7 +162,7 @@ functions:
   sqs-to-render:
     handler: src/functions/sqs-to-render.handler
     description: Consumes SQS messages, renders SVG, writes to output bucket, deletes original
-    # timeout: 300
+    timeout: 300
     # memorySize: 5120
     logRetentionInDays: 7
     environment:
