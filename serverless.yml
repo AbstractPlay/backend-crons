@@ -191,7 +191,7 @@ functions:
           schedule: cron(0 0 * * ? *)
 
   records:
-    handler: utils/records.handler
+    handler: src/functions/records.handler
     description: Generates static lists of game records
     timeout: 900
     memorySize: 10240
@@ -204,7 +204,7 @@ functions:
           schedule: cron(0 3 * * ? *)
 
   records-ttm:
-    handler: utils/records-ttm.handler
+    handler: src/functions/records-ttm.handler
     description: Generates static time-to-move results of each game
     timeout: 900
     memorySize: 10240
@@ -217,7 +217,7 @@ functions:
           schedule: cron(0 3 * * ? *)
 
   records-move-times:
-    handler: utils/records-move-times.handler
+    handler: src/functions/records-move-times.handler
     description: Generates list of moves made in past 180 days
     timeout: 900
     memorySize: 10240
@@ -230,7 +230,7 @@ functions:
           schedule: cron(0 3 * * ? *)
 
   records-manifest:
-    handler: utils/records-manifest.handler
+    handler: src/functions/records-manifest.handler
     description: Generates manifest file for records bucket
     timeout: 900
     memorySize: 10240
@@ -244,7 +244,7 @@ functions:
           schedule: cron(0 4,7 * * ? *)
 
   summarize:
-    handler: utils/summarize.handler
+    handler: src/functions/summarize.handler
     description: Summarize generated game reports
     timeout: 60
     events:
