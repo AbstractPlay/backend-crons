@@ -179,6 +179,17 @@ functions:
               - RenderQueue
               - Arn
 
+  dumpdb:
+    handler: src/functions/dumpdb.handler
+    description: Triggers a full export of production DB to S3
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-dumpdb
+          description: Triggers a full export of production DB to S3
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # midnight UTC every Sunday
+          schedule: cron(0 0 * * ? *)
+
 package:
   patterns:
     - fonts/**
