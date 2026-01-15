@@ -60,14 +60,17 @@ export const handler = async (event: SQSEvent): Promise<void> => {
     const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const data = await streamToString(obj.Body as Readable);
     console.log(`Fetched the following JSON:\n${data}`);
-    let aprender: APRenderRep;
+    let aprender: APRenderRep|APRenderRep[];
     if (typeof(data) === "string") {
-        aprender = JSON.parse(data) as APRenderRep;
+        aprender = JSON.parse(data) as APRenderRep|APRenderRep[];
         if (typeof(aprender) === "string") {
-            aprender = JSON.parse(aprender) as APRenderRep;
+            aprender = JSON.parse(aprender) as APRenderRep|APRenderRep[];
         }
     } else {
-        aprender = data as APRenderRep;
+        aprender = data as APRenderRep|APRenderRep[];
+    }
+    if (Array.isArray(aprender)) {
+        aprender = aprender[aprender.length - 1] as APRenderRep;
     }
     console.log(`Result after parsing:\n${JSON.stringify(aprender)}`);
 
