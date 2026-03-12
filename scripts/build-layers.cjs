@@ -1,36 +1,55 @@
 const fs = require('fs-extra');
 const path = require('path');
+const { execSync } = require('child_process');
 
-async function createLayer() {
-  const layerDir = path.resolve(__dirname, '../.serverless/layers/abstractplay-libs');
+/**
+ * Creates a Lambda layer with specified packages and their production dependencies.
+ * @param {string} layerName - The name of the layer directory to create.
+ * @param {string[]} packagesToInclude - A list of package names to include.
+ */
+async function createLayer(layerName, packagesToInclude) {
+  const layerDir = path.resolve(__dirname, `../.serverless/layers/${layerName}`);
   const nodejsDir = path.join(layerDir, 'nodejs');
-  const nodeModulesDir = path.join(nodejsDir, 'node_modules');
-  const rootNodeModules = path.resolve(__dirname, '../node_modules');
+  const rootPackageJson = require('../package.json');
 
-  console.log('Creating abstractplay-libs layer...');
+  console.log(`Creating ${layerName} layer...`);
 
   // 1. Clean and create directory structure
   await fs.emptyDir(layerDir);
-  await fs.ensureDir(nodeModulesDir);
+  await fs.ensureDir(nodejsDir);
 
-  // 2. Copy required packages from root node_modules
-  const packagesToCopy = ['@abstractplay/gameslib', '@abstractplay/renderer'];
+  // 2. Create a package.json for the layer
+  const layerPackageJson = {
+    dependencies: {}
+  };
 
-  for (const pkg of packagesToCopy) {
-    const sourcePath = path.join(rootNodeModules, pkg);
-    const destPath = path.join(nodeModulesDir, pkg);
-    if (await fs.pathExists(sourcePath)) {
-      console.log(`Copying ${pkg} to layer...`);
-      await fs.copy(sourcePath, destPath);
-    } else {
-      throw new Error(`Package ${pkg} not found in root node_modules. Please run 'npm install' first.`);
-    }
+  for (const pkg of packagesToInclude) {
+    const version = rootPackageJson.dependencies?.[pkg] || rootPackageJson.devDependencies?.[pkg];
+    if (!version) throw new Error(`Could not find ${pkg} in package.json`);
+    layerPackageJson.dependencies[pkg] = version;
   }
 
-  console.log('✅ abstractplay-libs layer created successfully in .serverless/layers/abstractplay-libs');
+  await fs.writeJson(path.join(nodejsDir, 'package.json'), layerPackageJson, { spaces: 2 });
+
+  // Copy .npmrc to handle private packages if any
+  const npmrcPath = path.resolve(__dirname, '../.npmrc');
+  if (await fs.pathExists(npmrcPath)) {
+    await fs.copy(npmrcPath, path.join(nodejsDir, '.npmrc'));
+  }
+
+  // 3. Install only production dependencies
+  console.log(`Installing dependencies for ${layerName} layer...`);
+  execSync('npm install --production', { cwd: nodejsDir, stdio: 'inherit' });
+
+  console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
 
-createLayer().catch(err => {
-  console.error('Error creating layer:', err);
-  process.exit(1);
+async function main() {
+  await createLayer('abstractplay-gameslib', ['@abstractplay/gameslib']);
+  await createLayer('abstractplay-renderer', ['@abstractplay/renderer']);
+}
+
+main().catch(err => {
+    console.error('Error creating layers:', err);
+    process.exit(1);
 });

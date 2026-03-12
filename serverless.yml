@@ -179,8 +179,7 @@ functions:
     environment:
       RENDER_BUCKET: ${self:custom.renderBucketName}
     layers:
-      - arn:aws:lambda:us-east-1:153672715141:layer:puppeteer:1
-      - !Ref AbstractplayLibsLambdaLayer
+      - !Ref AbstractplayRendererLambdaLayer
     events:
       - sqs:
           arn:
@@ -206,6 +205,8 @@ functions:
     timeout: 900
     memorySize: 10240
     logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-records
@@ -220,6 +221,8 @@ functions:
     timeout: 900
     memorySize: 10240
     logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-records-ttm
@@ -234,6 +237,8 @@ functions:
     timeout: 900
     memorySize: 10240
     logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-records-move-times
@@ -248,6 +253,8 @@ functions:
     timeout: 900
     memorySize: 10240
     logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-records-manifest
@@ -261,6 +268,8 @@ functions:
     handler: src/functions/summarize.handler
     description: Summarize generated game reports
     timeout: 120
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     logRetentionInDays: 30
     events:
       - eventBridge:
@@ -275,10 +284,17 @@ package:
     - fonts/**
 
 layers:
-  abstractplayLibs:
-    path: .serverless/layers/abstractplay-libs
-    name: abstractplay-libs-${sls:stage}
-    description: "Layer for @abstractplay/gameslib and @abstractplay/renderer"
+  abstractplayGameslib:
+    path: .serverless/layers/abstractplay-gameslib
+    name: abstractplay-gameslib-${sls:stage}
+    description: "Layer for @abstractplay/gameslib"
+    compatibleRuntimes:
+      - nodejs20.x
+    retain: false
+  abstractplayRenderer:
+    path: .serverless/layers/abstractplay-renderer
+    name: abstractplay-renderer-${sls:stage}
+    description: "Layer for @abstractplay/renderer and its dependencies (puppeteer)"
     compatibleRuntimes:
       - nodejs20.x
     retain: false
