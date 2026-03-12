@@ -19,7 +19,7 @@ custom:
     outExtension:
       ".js": ".mjs"
     platform: "node"
-    target: "node22"
+    target: "node20"
     external:
       - "@abstractplay/renderer"
       - "@abstractplay/gameslib"
@@ -30,10 +30,6 @@ custom:
       - "sharp"
       - "buffer"
       - "fs"
-    exclude:
-      - "@abstractplay/renderer"
-      - "@abstractplay/gameslib"
-      - "sharp"
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: npm run build:layers
@@ -145,6 +141,9 @@ functions:
       RENDER_BUCKET: ${self:custom.renderBucketName}
     layers:
       - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1 # Replace with your actual sharp layer ARN if different
+    package:
+      exclude:
+        - node_modules/sharp/**
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-thumbnails
@@ -179,6 +178,12 @@ functions:
     layers:
       - arn:aws:lambda:us-east-1:153672715141:layer:puppeteer:1
       - !Ref AbstractplayLibsLambdaLayer
+    package:
+      exclude:
+        - node_modules/@sparticuz/chromium/**
+        - node_modules/puppeteer-core/**
+        - node_modules/@abstractplay/renderer/**
+        - node_modules/@abstractplay/gameslib/**
     events:
       - sqs:
           arn:
