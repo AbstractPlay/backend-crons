@@ -39,7 +39,7 @@ async function createLayer(layerName, packagesToInclude) {
 
   // 3. Install only production dependencies
   console.log(`Installing dependencies for ${layerName} layer...`);
-  execSync('npm install --production', { cwd: nodejsDir, stdio: 'inherit' });
+  execSync('npm install --omit=dev', { cwd: nodejsDir, stdio: 'inherit' });
 
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
