@@ -30,9 +30,13 @@ custom:
       - "sharp"
       - "buffer"
       - "fs"
+    exclude:
+      - "@abstractplay/renderer"
+      - "@abstractplay/gameslib"
+      - "sharp"
   scriptable:
     hooks:
-      before:package:createDeploymentArtifacts: npm run postinstall
+      before:package:createDeploymentArtifacts: npm run build:layers
 
 params:
   dev:
@@ -139,6 +143,8 @@ functions:
     logRetentionInDays: 7
     environment:
       RENDER_BUCKET: ${self:custom.renderBucketName}
+    layers:
+      - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1 # Replace with your actual sharp layer ARN if different
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-thumbnails
@@ -172,6 +178,7 @@ functions:
       RENDER_BUCKET: ${self:custom.renderBucketName}
     layers:
       - arn:aws:lambda:us-east-1:153672715141:layer:puppeteer:1
+      - !Ref AbstractplayLibsLambdaLayer
     events:
       - sqs:
           arn:
@@ -264,3 +271,12 @@ functions:
 package:
   patterns:
     - fonts/**
+
+layers:
+  abstractplayLibs:
+    path: .serverless/layers/abstractplay-libs
+    name: abstractplay-libs-${sls:stage}
+    description: "Layer for @abstractplay/gameslib and @abstractplay/renderer"
+    compatibleRuntimes:
+      - nodejs20.x
+    retain: false
