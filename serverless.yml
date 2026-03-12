@@ -30,6 +30,12 @@ custom:
       - "sharp"
       - "buffer"
       - "fs"
+    exclude:
+      - "@sparticuz/chromium"
+      - "puppeteer-core"
+      - "@abstractplay/renderer"
+      - "@abstractplay/gameslib"
+      - "sharp"
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: npm run build:layers
@@ -267,12 +273,6 @@ functions:
 package:
   patterns:
     - fonts/**
-  exclude:
-    - node_modules/@sparticuz/chromium/**
-    - node_modules/puppeteer-core/**
-    - node_modules/@abstractplay/renderer/**
-    - node_modules/@abstractplay/gameslib/**
-    - node_modules/sharp/**
 
 layers:
   abstractplayLibs:
