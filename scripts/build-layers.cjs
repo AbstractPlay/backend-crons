@@ -79,26 +79,41 @@ async function createLayer(layerName, packagesToInclude) {
 
   // 5. Aggressively prune all node_modules to reduce size
   console.log(`Aggressively pruning all node_modules for ${layerName} layer...`);
-  const nodeModulesDir = path.join(nodejsDir, 'node_modules');
+  const nodeModulesDir = path.join(nodejsDir, 'node_modules'); // We'll execute from here
   const patternsToRemove = [
+    // Documentation and metadata
     '**/*.md',
-    '**/LICENSE',
-    '**/test',
-    '**/tests',
-    '**/doc',
-    '**/docs',
+    '**/README*',
+    '**/CHANGELOG*',
+    '**/HISTORY*',
+    '**/CONTRIBUTING*',
+    '**/AUTHORS*',
+    '**/LICENSE*',
+    '**/.github',
+    // Examples and tests
     '**/example',
     '**/examples',
+    '**/test',
+    '**/tests',
     '**/__tests__',
+    '**/*.test.js',
+    '**/*.spec.js',
+    '**/fixtures',
+    // Build artifacts and configs
+    '**/*.map',
     '**/*.d.ts',
-    '**/*.ts.map',
-    '**/jest.config.js',
-    '**/webpack.config.js',
+    '**/tsconfig.json',
+    '**/jsconfig.json',
+    '**/Makefile',
     '**/.eslintrc.js',
-    '**/.prettierrc.js',
-  ].map(p => `"${path.join(nodeModulesDir, p)}"`).join(' '); // Quote paths to handle spaces
+    // Localization
+    '**/doc',
+    '**/docs',
+    '**/i18n',
+    '**/locales',
+  ].map(p => `"${p}"`).join(' '); // Use relative paths from node_modules
 
-  execSync(`npx rimraf ${patternsToRemove}`, { cwd: nodejsDir, stdio: 'inherit' });
+  execSync(`npx rimraf ${patternsToRemove}`, { cwd: nodeModulesDir, stdio: 'inherit' });
 
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
