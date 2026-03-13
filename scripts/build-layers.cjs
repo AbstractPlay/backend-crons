@@ -76,11 +76,35 @@ async function createLayer(layerName, packagesToInclude) {
       }
     }
   }
+
+  // 5. Aggressively prune all node_modules to reduce size
+  console.log(`Aggressively pruning all node_modules for ${layerName} layer...`);
+  const nodeModulesDir = path.join(nodejsDir, 'node_modules');
+  const patternsToRemove = [
+    '**/*.md',
+    '**/LICENSE',
+    '**/test',
+    '**/tests',
+    '**/doc',
+    '**/docs',
+    '**/example',
+    '**/examples',
+    '**/__tests__',
+    '**/*.d.ts',
+    '**/*.ts.map',
+    '**/jest.config.js',
+    '**/webpack.config.js',
+    '**/.eslintrc.js',
+    '**/.prettierrc.js',
+  ].map(p => `"${path.join(nodeModulesDir, p)}"`).join(' '); // Quote paths to handle spaces
+
+  execSync(`npx rimraf ${patternsToRemove}`, { cwd: nodejsDir, stdio: 'inherit' });
+
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
 
 async function main() {
-  await createLayer('abstractplay-gameslib', ['@abstractplay/gameslib']);
+  await createLayer('abstractplay-gameslib', ['@abstractplay/gameslib', '@abstractplay/recranks']);
 //   await createLayer('abstractplay-renderer', ['@abstractplay/renderer']);
 }
 
