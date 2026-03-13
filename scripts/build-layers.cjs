@@ -18,6 +18,10 @@ async function createLayer(layerName, packagesToInclude) {
   await fs.emptyDir(layerDir);
   await fs.ensureDir(nodejsDir);
 
+  // Add a cache-busting file to ensure Serverless detects a change
+  const cacheBustContent = `Build time: ${new Date().toISOString()}`;
+  await fs.writeFile(path.join(nodejsDir, 'build-info.txt'), cacheBustContent);
+
   // 2. Create a package.json for the layer
   const layerPackageJson = {
     dependencies: {}
@@ -43,6 +47,7 @@ async function createLayer(layerName, packagesToInclude) {
 
   // WORKAROUND: If building the gameslib layer, forcefully remove renderer dependencies.
   // The "correct" fix is to publish a new version of gameslib with renderer as a devDependency.
+  // Which I've done, but it doesn't appear to be working. So forcing the issue for now.
   if (layerName === 'abstractplay-gameslib') {
     console.log('Pruning renderer dependencies from gameslib layer as a workaround...');
     const packagesToRemove = [
