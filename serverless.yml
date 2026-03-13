@@ -21,12 +21,14 @@ custom:
     target: "node20"
     external:
       - "@abstractplay/gameslib"
+      - "@abstractplay/recranks"
       - "@aws-sdk/*"
       - "@smithy/*"
       - "buffer"
       - "fs"
     exclude:
       - "@abstractplay/gameslib"
+      - "@abstractplay/recranks"
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: npm run build:layers

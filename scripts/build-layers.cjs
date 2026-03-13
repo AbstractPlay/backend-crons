@@ -50,18 +50,13 @@ async function createLayer(layerName, packagesToInclude) {
   // Which I've done, but it doesn't appear to be working. So forcing the issue for now.
   if (layerName === 'abstractplay-gameslib') {
     console.log('Pruning renderer dependencies from gameslib layer as a workaround...');
-    const packagesToRemove = [
-      path.join('node_modules', '@abstractplay', 'renderer'),
-      path.join('node_modules', '@sparticuz', 'chromium'),
-      path.join('node_modules', 'puppeteer-core')
+    const packagesToRemoveGlob = [
+      'node_modules/@abstractplay/renderer',
+      'node_modules/@sparticuz/chromium',
+      'node_modules/puppeteer-core'
     ];
-    for (const pkgPath of packagesToRemove) {
-      const fullPath = path.join(nodejsDir, pkgPath);
-      if (await fs.pathExists(fullPath)) {
-        console.log(`   - Removing ${fullPath}`);
-        await fs.remove(fullPath);
-      }
-    }
+    // Use rimraf for robust deletion. It's in devDependencies.
+    execSync(`npx rimraf ${packagesToRemoveGlob.join(' ')}`, { cwd: nodejsDir, stdio: 'inherit' });
   }
 
   // 4. Prune unnecessary files to reduce layer size
