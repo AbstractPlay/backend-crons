@@ -86,7 +86,7 @@ async function createLayer(layerName, packagesToInclude) {
 
 async function main() {
   await createLayer('abstractplay-gameslib', ['@abstractplay/gameslib']);
-  await createLayer('abstractplay-renderer', ['@abstractplay/renderer']);
+//   await createLayer('abstractplay-renderer', ['@abstractplay/renderer']);
 }
 
 main().catch(err => {

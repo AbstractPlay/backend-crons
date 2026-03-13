@@ -9,7 +9,6 @@ custom:
   recbucket:
     prod: "records.abstractplay.com"
     dev: "records.abstractplay.com"
-  renderBucketName: "thumbnails-prerender-${self:provider.stage}"
   dumpbucket: "abstractplay-db-dump"
   esbuild:
     tsconfig: "./tsconfig.json"
@@ -21,21 +20,13 @@ custom:
     platform: "node"
     target: "node20"
     external:
-      - "@abstractplay/renderer"
       - "@abstractplay/gameslib"
-      - "@sparticuz/chromium"
-      - "puppeteer-core"
       - "@aws-sdk/*"
       - "@smithy/*"
-      - "sharp"
       - "buffer"
       - "fs"
     exclude:
-      - "@sparticuz/chromium"
-      - "puppeteer-core"
-      - "@abstractplay/renderer"
       - "@abstractplay/gameslib"
-      - "sharp"
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: npm run build:layers
@@ -43,10 +34,8 @@ custom:
 params:
   dev:
     profile: AbstractPlayDev
-    userpool: arn:aws:cognito-idp:us-east-1:153672715141:userpool/us-east-1_2zrzbEjoU
   prod:
     profile: AbstractPlayProd
-    userpool: arn:aws:cognito-idp:us-east-1:153672715141:userpool/us-east-1_YCjgSZHJm
 
 plugins:
   - serverless-esbuild
@@ -64,14 +53,6 @@ provider:
     retentionInDays: 30   # set to any valid retention period (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653)
   environment:
     ABSTRACT_PLAY_TABLE: abstract-play-${self:provider.stage}
-    userpool: ${param:userpool}
-    SQS_URL: !Ref RenderQueue
-    TOTP_KEY: ${env:TOTP_KEY}
-    VAPID_PRIVATE_KEY: ${env:VAPID_PRIVATE_KEY}
-    VAPID_PUBLIC_KEY: ${env:VAPID_PUBLIC_KEY}
-    # TOTP_KEY: ${file(../apsecrets.yml):totp_key}
-    # VAPID_PRIVATE_KEY: ${file(../apsecrets.yml):vapid_private_key}
-    # VAPID_PUBLIC_KEY: ${file(../apsecrets.yml):vapid_public_key}
   iam:
     role:
       statements:
@@ -96,13 +77,11 @@ provider:
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump"
             - "arn:aws:s3:::records.abstractplay.com"
-            - "arn:aws:s3:::${self:custom.renderBucketName}"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump/*"
-            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
         - Effect: "Allow"
           Action:
             - "s3:PutObject"
@@ -110,95 +89,8 @@ provider:
             - "arn:aws:s3:::records.abstractplay.com/*"
             - "arn:aws:s3:::thumbnails.abstractplay.com/*"
             - "arn:aws:s3:::abstractplay-db-dump/*"
-            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
-        - Effect: "Allow"
-          Action:
-            - "s3:DeleteObject"
-          Resource:
-            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
-
-resources:
-  Resources:
-    RenderQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: abstractplay-render-queue-${self:provider.stage}
-        VisibilityTimeout: 900   # match your consumer Lambda timeout
-        MessageRetentionPeriod: 86400  # 1 day, adjust as needed
-
-  Outputs:
-    RenderQueueArn:
-      Value: !GetAtt RenderQueue.Arn
-      Export:
-        Name: RenderQueueArn-${self:provider.stage}
-    RenderQueueUrl:
-      Value: !Ref RenderQueue
-      Export:
-        Name: RenderQueueUrl-${self:provider.stage}
 
 functions:
-  thumbnails:
-    handler: src/functions/thumbnails.handler
-    description: Generates random thumbnails daily
-    timeout: 300
-    memorySize: 5120
-    logRetentionInDays: 7
-    environment:
-      RENDER_BUCKET: ${self:custom.renderBucketName}
-    layers:
-      - arn:aws:lambda:us-east-1:153672715141:layer:sharp:1 # Replace with your actual sharp layer ARN if different
-    events:
-      - eventBridge:
-          name: abstractplay-${self:provider.stage}-thumbnails
-          description: Generates random thumbnails daily
-          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 6am UTC daily (giving record generation plenty of time to complete)
-          schedule: cron(0 6 * * ? *)
-
-  s3-to-sqs:
-    handler: src/functions/s3-to-sqs.handler
-    description: Triggered when new objects are written to S3, pushes job info to SQS
-    timeout: 30
-    memorySize: 512
-    logRetentionInDays: 7
-    environment:
-      TARGET_QUEUE_ARN: !GetAtt RenderQueue.Arn
-      RENDER_BUCKET: ${self:custom.renderBucketName}
-    events:
-      - s3:
-          bucket: ${self:custom.renderBucketName}
-          existing: true
-          event: s3:ObjectCreated:*
-
-  sqs-to-render:
-    handler: src/functions/sqs-to-render.handler
-    description: Consumes SQS messages, renders SVG, writes to output bucket, deletes original
-    timeout: 300
-    memorySize: 2048
-    logRetentionInDays: 7
-    environment:
-      RENDER_BUCKET: ${self:custom.renderBucketName}
-    layers:
-      - !Ref AbstractplayRendererLambdaLayer
-    events:
-      - sqs:
-          arn:
-            Fn::GetAtt:
-              - RenderQueue
-              - Arn
-
-  dumpdb:
-    handler: src/functions/dumpdb.handler
-    description: Triggers a full export of production DB to S3
-    logRetentionInDays: 30
-    events:
-      - eventBridge:
-          name: abstractplay-${self:provider.stage}-dumpdb
-          description: Triggers a full export of production DB to S3
-          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # midnight UTC every Sunday
-          schedule: cron(0 0 * * ? *)
-
   records:
     handler: src/functions/records.handler
     description: Generates static lists of game records
@@ -279,22 +171,11 @@ functions:
           # 6am UTC daily (giving plenty of time for the record generation to complete)
           schedule: cron(0 6 * * ? *)
 
-package:
-  patterns:
-    - fonts/**
-
 layers:
   abstractplayGameslib:
     path: .serverless/layers/abstractplay-gameslib
     name: abstractplay-gameslib-${sls:stage}
     description: "Layer for @abstractplay/gameslib"
-    compatibleRuntimes:
-      - nodejs20.x
-    retain: false
-  abstractplayRenderer:
-    path: .serverless/layers/abstractplay-renderer
-    name: abstractplay-renderer-${sls:stage}
-    description: "Layer for @abstractplay/renderer and its dependencies (puppeteer)"
     compatibleRuntimes:
       - nodejs20.x
     retain: false
