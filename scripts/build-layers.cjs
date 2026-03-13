@@ -111,9 +111,9 @@ async function createLayer(layerName, packagesToInclude) {
     '**/docs',
     '**/i18n',
     '**/locales',
-  ].map(p => `"${p}"`).join(' '); // Use relative paths from node_modules
+  ].join(' '); // Use relative paths from node_modules
 
-  execSync(`npx rimraf ${patternsToRemove}`, { cwd: nodeModulesDir, stdio: 'inherit' });
+  execSync(`npx rimraf ${patternsToRemove}`, { cwd: nodeModulesDir, stdio: 'inherit' }); // rimraf handles glob patterns internally
 
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }

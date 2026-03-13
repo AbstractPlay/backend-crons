@@ -13,7 +13,7 @@ custom:
   esbuild:
     tsconfig: "./tsconfig.json"
     bundle: true
-    sourcemap: true
+    sourcemap: false # Sourcemaps are large and not needed in production
     format: "esm"
     outExtension:
       ".js": ".mjs"
