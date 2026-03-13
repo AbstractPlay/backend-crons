@@ -41,6 +41,24 @@ async function createLayer(layerName, packagesToInclude) {
   console.log(`Installing dependencies for ${layerName} layer...`);
   execSync('npm install --omit=dev', { cwd: nodejsDir, stdio: 'inherit' });
 
+  // WORKAROUND: If building the gameslib layer, forcefully remove renderer dependencies.
+  // The "correct" fix is to publish a new version of gameslib with renderer as a devDependency.
+  if (layerName === 'abstractplay-gameslib') {
+    console.log('Pruning renderer dependencies from gameslib layer as a workaround...');
+    const packagesToRemove = [
+      path.join('node_modules', '@abstractplay', 'renderer'),
+      path.join('node_modules', '@sparticuz', 'chromium'),
+      path.join('node_modules', 'puppeteer-core')
+    ];
+    for (const pkgPath of packagesToRemove) {
+      const fullPath = path.join(nodejsDir, pkgPath);
+      if (await fs.pathExists(fullPath)) {
+        console.log(`   - Removing ${fullPath}`);
+        await fs.remove(fullPath);
+      }
+    }
+  }
+
   // 4. Prune unnecessary files to reduce layer size
   console.log(`Pruning files for ${layerName} layer...`);
   if (layerName === 'abstractplay-gameslib') {
