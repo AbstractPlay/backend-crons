@@ -41,6 +41,23 @@ async function createLayer(layerName, packagesToInclude) {
   console.log(`Installing dependencies for ${layerName} layer...`);
   execSync('npm install --omit=dev', { cwd: nodejsDir, stdio: 'inherit' });
 
+  // 4. Prune unnecessary files to reduce layer size
+  console.log(`Pruning files for ${layerName} layer...`);
+  if (layerName === 'abstractplay-gameslib') {
+    const gameslibDir = path.join(nodejsDir, 'node_modules', '@abstractplay', 'gameslib');
+    const toRemove = [
+      'docs',
+      'README.md',
+      'locales',
+    ];
+    for (const item of toRemove) {
+      const itemPath = path.join(gameslibDir, item);
+      if (await fs.pathExists(itemPath)) {
+        console.log(`   - Removing ${itemPath}`);
+        await fs.remove(itemPath);
+      }
+    }
+  }
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
 
