@@ -93,6 +93,18 @@ provider:
             - "arn:aws:s3:::abstractplay-db-dump/*"
 
 functions:
+  dumpdb:
+    handler: src/functions/dumpdb.handler
+    description: Triggers a full export of production DB to S3
+    logRetentionInDays: 30
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-dumpdb
+          description: Triggers a full export of production DB to S3
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # midnight UTC every Sunday
+          schedule: cron(0 0 * * ? *)
+
   records:
     handler: src/functions/records.handler
     description: Generates static lists of game records
