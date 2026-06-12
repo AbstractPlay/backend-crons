@@ -8,3 +8,4 @@ jspm_packages
 /utils/*.js
 .vscode/
 bin/
+dist/

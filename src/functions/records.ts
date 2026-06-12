@@ -16,6 +16,8 @@ const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
 const DUMP_BUCKET = "abstractplay-db-dump";
 const REC_BUCKET = "records.abstractplay.com";
+/** Legacy built-in AI opponent (see node-backend AIAI_USERID). */
+const LEGACY_BOT_ID = "SkQfHAjeDxs8eeEnScuYA";
 
 export const handler: Handler = async (event: any, context?: any) => {
   const i18nInstance = i18next as unknown as i18n;
@@ -78,6 +80,7 @@ export const handler: Handler = async (event: any, context?: any) => {
     const tournaments: Tournament[] = [];
     const events: OrgEvent[] = [];
     const eventGames: OrgEventGame[] = [];
+    const registeredBots = new Set<string>([LEGACY_BOT_ID]);
     for (const file of dataFiles) {
         console.log(`Loading ${file.Key}`);
         const command = new GetObjectCommand({
@@ -116,6 +119,8 @@ export const handler: Handler = async (event: any, context?: any) => {
                                     events.push(rec as OrgEvent);
                                 } else if (rec.pk === "ORGEVENTGAME") {
                                     eventGames.push(rec as OrgEventGame);
+                                } else if (rec.pk === "BOT") {
+                                    registeredBots.add(rec.sk);
                                 }
                             }
                         } catch (err) {
@@ -134,6 +139,7 @@ export const handler: Handler = async (event: any, context?: any) => {
           }
     }
     console.log(`Found ${justGames.length} completed GAME records`);
+    console.log(`Found ${registeredBots.size} registered bots`);
 
     // for each game, generate a game record and categorize it
     const pushToMap = (m: Map<string, any[]>, key: string, value: any) => {
@@ -175,7 +181,11 @@ export const handler: Handler = async (event: any, context?: any) => {
         }
         const rec = g.genRecord({
             uid: `${g.metaGame}#${gdata.id}`,
-            players: gdata.players.map(p => { return {uid: p.id, name: p.name}; }),
+            players: gdata.players.map(p => ({
+                uid: p.id,
+                name: p.name,
+                isai: registeredBots.has(p.id) ? true : undefined,
+            })),
             event: event !== null ? event : undefined,
             round: round !== null ? round : undefined,
         });
