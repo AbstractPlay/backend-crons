@@ -189,6 +189,8 @@ functions:
     handler: src/functions/yourturn.handler
     description: Sends out "your turn" notifications
     logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-yourturn
@@ -215,6 +217,8 @@ functions:
     description: Checks if any tournaments are ready to start (and starts or cancels them)
     timeout: 600
     logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
           name: abstractplay-${self:provider.stage}-starttournaments
