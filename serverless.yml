@@ -185,19 +185,6 @@ functions:
           # 6am UTC daily (giving plenty of time for the record generation to complete)
           schedule: cron(0 6 * * ? *)
 
-  yourturn:
-    handler: src/functions/yourturn.handler
-    description: Sends out "your turn" notifications
-    logRetentionInDays: 30
-    layers:
-      - !Ref AbstractplayGameslibLambdaLayer
-    events:
-      - eventBridge:
-          name: abstractplay-${self:provider.stage}-yourturn
-          description: Send out "your turn" notifications
-          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          schedule: cron(0 14,22 * * ? *)
-
   tournament-data:
     handler: src/functions/tournament-data.handler
     description: Summarizes tournament data
