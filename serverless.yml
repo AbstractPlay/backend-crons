@@ -186,7 +186,7 @@ functions:
           schedule: cron(0 6 * * ? *)
 
   yourturn:
-    handler: functions/yourturn.handler
+    handler: src/functions/yourturn.handler
     description: Sends out "your turn" notifications
     logRetentionInDays: 30
     events:
@@ -197,7 +197,7 @@ functions:
           schedule: cron(0 14,22 * * ? *)
 
   tournament-data:
-    handler: functions/tournament-data.handler
+    handler: src/functions/tournament-data.handler
     description: Summarizes tournament data
     timeout: 900
     memorySize: 10240
@@ -211,7 +211,7 @@ functions:
           schedule: cron(0 3 * * ? *)
 
   starttournaments:
-    handler: functions/starttournaments.handler
+    handler: src/functions/starttournaments.handler
     description: Checks if any tournaments are ready to start (and starts or cancels them)
     timeout: 600
     logRetentionInDays: 30
@@ -224,7 +224,7 @@ functions:
           schedule: cron(0 10,22 * * ? *)
 
   standingchallenges:
-    handler: functions/standingchallenges.handler
+    handler: src/functions/standingchallenges.handler
     description: Manages preset standing challenge requests
     timeout: 600
     logRetentionInDays: 30
