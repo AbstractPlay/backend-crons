@@ -1,0 +1,11 @@
+[
+  { "slug": "index", "title": "Overview" },
+  { "slug": "architecture" },
+  { "slug": "getting-started", "title": "Getting started" },
+  { "slug": "deployment" },
+  { "slug": "pipeline", "title": "Records pipeline" },
+  { "slug": "functions", "title": "Functions reference" },
+  { "slug": "s3-outputs", "title": "S3 outputs" },
+  { "slug": "summarize" },
+  { "slug": "live-crons", "title": "Live crons" }
+]

@@ -9,6 +9,16 @@ import { gameinfo } from "@abstractplay/gameslib";
 import { replacer } from "@abstractplay/gameslib/build/src/common/serialization.js";
 import type { UserRating, StatSummary } from "types/index.js";
 import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats } from "types/index.js";
+import {
+    GLICKO_PERIOD_MS,
+    computeGlickoNumPeriods,
+    computeTimeoutHistogramRates,
+    findTimeoutPlayerSeat,
+    maxOf,
+    partitionByGlickoPeriod,
+    recordHasAbandoned,
+    recordHasTimeout,
+} from "./summarizeHelpers.js";
 // import { nanoid } from "nanoid";
 
 const REGION = "us-east-1";
@@ -104,9 +114,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                 newest = sorted[0];
             }
             // find timeouts
-            const moveStr = JSON.stringify(rec.moves);
-            // if abandoned, assign timeout to all players
-            if (moveStr.includes("abandoned")) {
+            if (recordHasAbandoned(rec.moves)) {
                 const datems = new Date(rec.header["date-end"]).getTime();
                 siteTimeouts.push(datems);
                 for (const p of rec.header.players) {
@@ -114,18 +122,13 @@ export const handler: Handler = async (event: any, context?: any) => {
                 }
             }
             // if timeout, assign timeout to player who timed out
-            else if (moveStr.includes("timeout")) {
+            else if (recordHasTimeout(rec.moves)) {
                 const datems = new Date(rec.header["date-end"]).getTime();
                 siteTimeouts.push(datems);
-                // find the specific move
-                const fidx = rec.moves.findIndex(mvs => mvs.find(m => m !== null && (typeof m === "object" ? m.move === "timeout" : m === "timeout")));
-                if (fidx !== -1) {
-                    const mvs = rec.moves[fidx];
-                    const midx = mvs.findIndex(m => m !== null && (typeof m === "object" ? m.move === "timeout" : m === "timeout"));
-                    if (midx !== -1) {
-                        const p = rec.header.players[midx];
-                        timeouts.push({user: p.userid!, value: datems});
-                    }
+                const seatIdx = findTimeoutPlayerSeat(rec.moves, rec.header.players.length);
+                if (seatIdx !== undefined) {
+                    const p = rec.header.players[seatIdx];
+                    timeouts.push({user: p.userid!, value: datems});
                 }
             }
         }
@@ -275,7 +278,8 @@ export const handler: Handler = async (event: any, context?: any) => {
                     const tsResults = ts.runProcessed(subset);
                     const tsRatings = new Map(tsResults.ratings) as Map<string, ITrueskillRating>;
                     if (ratingList.filter(r => r.game === metaName).length !== tsRatings.size) {
-                        const elo = new Set<string>(ratingList.map(r => r.user));
+                        const metaRatings = ratingList.filter(r => r.game === metaName);
+                        const elo = new Set<string>(metaRatings.map(r => r.user));
                         const tsVals = new Set<string>([...tsRatings.values()].map(r => {const [,u] = r.userid.split("|"); return u;}))
                         const inElo = [...elo.values()].filter(u => ! tsVals.has(u));
                         const inTS = [...tsVals.values()].filter(u => ! elo.has(u));
@@ -290,24 +294,21 @@ export const handler: Handler = async (event: any, context?: any) => {
                     const oldest = new Date(subset.map(r => r.header["date-end"]).sort((a, b) => a.localeCompare(b))[0]);
                     const newest = new Date(subset.map(r => r.header["date-end"]).sort((a, b) => b.localeCompare(a))[0]);
                     console.log(`Oldest: ${oldest}, Newest: ${newest}`);
-                    const delta = newest.getTime() - oldest.getTime();
-                    const period = 60 * 24 * 60 * 60 * 1000;
-                    let numPeriods = Math.ceil(delta / period);
-                    if (numPeriods === 0) { numPeriods++; }
+                    const oldestMs = oldest.getTime();
+                    const delta = newest.getTime() - oldestMs;
+                    const period = GLICKO_PERIOD_MS;
+                    const numPeriods = computeGlickoNumPeriods(delta, period);
                     console.log(`Number of periods: ${numPeriods}`);
+                    const dated = subset.map(rec => ({
+                        rec,
+                        dateEndMs: new Date(rec.header["date-end"]).getTime(),
+                    }));
+                    const buckets = partitionByGlickoPeriod(dated, oldestMs, period, numPeriods);
                     let toDate = new Map<string, IGlickoRating>();
                     let ratedRecs = 0;
                     for (let p = 0; p < numPeriods; p++) {
                         glicko.knownRatings = new Map(toDate);
-                        const pMin = oldest.getTime() + (p * period);
-                        const pMax = oldest.getTime() + ((p + 1) * period)
-                        const recs: APGameRecord[] = [];
-                        for (const rec of subset) {
-                            const secs = new Date(rec.header["date-end"]).getTime();
-                            if ( (secs >= pMin) && (secs < pMax) ) {
-                                recs.push(rec);
-                            }
-                        }
+                        const recs = buckets[p].map(d => d.rec);
                         ratedRecs += recs.length;
                         const results = glicko.runProcessed(recs);
                         toDate = new Map(results.ratings as Map<string, IGlickoRating>);
@@ -317,10 +318,11 @@ export const handler: Handler = async (event: any, context?: any) => {
                     }
                     // toDate now has the final rating results
                     if (ratingList.filter(r => r.game === metaName).length !== toDate.size) {
-                        const elo = new Set<string>(ratingList.map(r => r.user));
-                        const glicko = new Set<string>([...toDate.values()].map(r => {const [,u] = r.userid.split("|"); return u;}))
-                        const inElo = [...elo.values()].filter(u => ! glicko.has(u));
-                        const inGlicko = [...glicko.values()].filter(u => ! elo.has(u));
+                        const metaRatings = ratingList.filter(r => r.game === metaName);
+                        const elo = new Set<string>(metaRatings.map(r => r.user));
+                        const glickoUsers = new Set<string>([...toDate.values()].map(r => {const [,u] = r.userid.split("|"); return u;}))
+                        const inElo = [...elo.values()].filter(u => ! glickoUsers.has(u));
+                        const inGlicko = [...glickoUsers.values()].filter(u => ! elo.has(u));
                         throw new Error(`The list of Elo ratings is not the same length as the list of Glicko ratings.\nList of Elo ratings not in Glicko: ${JSON.stringify(inElo, null, 2)}\nList of Glicko ratings not in Elo: ${JSON.stringify(inGlicko, null, 2)}\nGlicko ratings: ${JSON.stringify(toDate, replacer, 2)}`);
                     }
                     console.log(`Final glicko rating results: ${JSON.stringify(toDate, replacer)}`)
@@ -341,7 +343,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                             throw new Error(`Rated recCounts do not match.`);
                         }
                         if (elo.recCount !== ts.recCount) {
-                            throw new Error(`Rated recCounts do not match for user ${user}:\nElo: ${elo.recCount}\nTrueskill: ${glicko.recCount}`);
+                            throw new Error(`Rated recCounts do not match for user ${user}:\nElo: ${elo.recCount}\nTrueskill: ${ts.recCount}`);
                         }
                         rawList.push({user, game: metaName, rating: Math.round(elo.rating), wld: [elo.wins, elo.losses, elo.draws], glicko: {rating: glicko.rating, rd: glicko.rd}, trueskill: {mu: ts.rating, sigma: ts.sigma}});
                     }
@@ -493,7 +495,6 @@ export const handler: Handler = async (event: any, context?: any) => {
         const histListPlayers: {user: string; bucket: number}[] = [];
         const completedList: {user: string; time: number}[] = [];
         const histTimeoutBuckets: number[] = [];
-        const histTimeouts: number[] = [];
         const earliest = Math.min(...recs.map(rec => new Date(rec.header["date-end"]).getTime()));
         // all first
         for (const rec of recs) {
@@ -510,7 +511,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         // all games
         const histAll: number[] = [];
         const histAllPlayers: number[] = [];
-        let maxBucket = Math.max(...histList.map(x => x.bucket));
+        let maxBucket = maxOf(histList.map(x => x.bucket));
         for (let i = 0; i <= maxBucket; i++) {
             histAll.push(histList.filter(x => x.bucket === i).length);
             const users = new Set<string>();
@@ -526,19 +527,17 @@ export const handler: Handler = async (event: any, context?: any) => {
             const bucket = Math.floor(daysAgo / 7);
             histTimeoutBuckets.push(bucket);
         }
-        for (let i = 0; i <= Math.max(...histTimeoutBuckets); i++) {
-            histTimeouts.push(histTimeoutBuckets.filter(x => x === i).length);
+        const histTimeoutCounts: number[] = [];
+        for (let i = 0; i <= maxOf(histTimeoutBuckets); i++) {
+            histTimeoutCounts.push(histTimeoutBuckets.filter(x => x === i).length);
         }
-        // convert to rate
-        for (let i = 0; i < histTimeouts.length; i++) {
-            histTimeouts[i] = histTimeouts[i] / histAll[i];
-        }
+        const histTimeouts = computeTimeoutHistogramRates(histTimeoutCounts, histAll);
 
         const histMeta: GameNumList[] = [];
         const recent: GameNumber[] = [];
         for (const meta of meta2recs.keys()) {
             const subset = histList.filter(x => x.game === meta);
-            const maxBucket = Math.max(...subset.map(x => x.bucket));
+            const maxBucket = maxOf(subset.map(x => x.bucket));
             const lst: number[] = [];
             for (let i = 0; i <= maxBucket; i++) {
                 lst.push(subset.filter(x => x.bucket === i).length);
@@ -552,7 +551,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         const histPlayers: UserNumList[] = [];
         for (const userid of (new Set<string>(histListPlayers.map(x => x.user)))) {
             const subset = histListPlayers.filter(x => x.user === userid);
-            const maxBucket = Math.max(...subset.map(x => x.bucket));
+            const maxBucket = maxOf(subset.map(x => x.bucket));
             const lst: number[] = [];
             for (let i = 0; i <= maxBucket; i++) {
                 lst.push(subset.filter(x => x.bucket === i).length);
@@ -570,7 +569,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                 const bucket = Math.floor(daysAgo / 7);
                 subset.push({bucket});
             }
-            const maxBucket = Math.max(...subset.map(x => x.bucket));
+            const maxBucket = maxOf(subset.map(x => x.bucket));
             const lst: number[] = [];
             for (let i = 0; i <= maxBucket; i++) {
                 lst.push(subset.filter(x => x.bucket === i).length);
@@ -588,7 +587,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             buckets.push(bucket);
         }
         const firstTimers: number[] = [];
-        maxBucket = Math.max(...buckets);
+        maxBucket = maxOf(buckets);
         for (let i = 0; i <= maxBucket; i++) {
             firstTimers.push(buckets.filter(x => x === i).length);
         }
@@ -598,8 +597,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         const hoursPer: number[] = [];
         for (const rec of recs) {
             // omit "timeout" and "abandoned" records
-            const moveStr = JSON.stringify(rec.moves);
-            if ( (moveStr.includes("timeout")) || (moveStr.includes("abandoned")) || (rec.moves.length < 2) ) {
+            if (recordHasTimeout(rec.moves) || recordHasAbandoned(rec.moves) || (rec.moves.length < 2)) {
                 // console.log(`Skipping record ${rec.header.site.gameid} because it contains a timeout move`)
                 continue;
             }
