@@ -71,7 +71,6 @@ provider:
             - sqs:SendMessage
             - ses:SendEmail
             - ses:SendRawEmail
-            - cloudfront:CreateInvalidation
           Resource: "*"
         - Effect: "Allow"
           Action:

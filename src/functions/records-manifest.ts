@@ -1,13 +1,11 @@
 'use strict';
 
 import { S3Client, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
-import { CloudFrontClient, CreateInvalidationCommand, type CreateInvalidationCommandInput } from "@aws-sdk/client-cloudfront";
 import { Handler } from "aws-lambda";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
 const REC_BUCKET = "records.abstractplay.com";
-const cloudfront = new CloudFrontClient({region: REGION});
 
 export const handler: Handler = async (event: any, context?: any) => {
     // generate file listing
@@ -36,30 +34,13 @@ export const handler: Handler = async (event: any, context?: any) => {
         Bucket: REC_BUCKET,
         Key: `_manifest.json`,
         Body: JSON.stringify(recList),
+        CacheControl: "no-cache",
     });
     const response = await s3.send(cmd);
     if (response["$metadata"].httpStatusCode !== 200) {
         console.log(response);
     }
     console.log("Manifest generated");
-
-    // invalidate CloudFront distribution
-    const cfParams: CreateInvalidationCommandInput = {
-        DistributionId: "EM4FVU08T5188",
-        InvalidationBatch: {
-            CallerReference: Date.now().toString(),
-            Paths: {
-                Quantity: 1,
-                Items: ["/*"],
-            },
-        },
-    };
-    const cfCmd = new CreateInvalidationCommand(cfParams);
-    const cfResponse = await cloudfront.send(cfCmd);
-    if (cfResponse["$metadata"].httpStatusCode !== 200) {
-        console.log(cfResponse);
-    }
-    console.log("Invalidation sent");
 
     console.log("ALL DONE");
 };
