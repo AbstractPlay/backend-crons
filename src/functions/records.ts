@@ -9,8 +9,7 @@ import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec, type Tournament, type OrgEvent, type OrgEventGame } from "types/index.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
-import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { type: "json" };
-import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
+import { enApgames, enApresults } from "../gameslibLocales.js";
 import enBack from "../locales/en/apback.json";
 
 const REGION = "us-east-1";

@@ -2,6 +2,113 @@ const fs = require('fs-extra');
 const path = require('path');
 const { execSync } = require('child_process');
 
+/** Directory names removed when found under layer node_modules (not at repo root). */
+const PRUNE_DIR_NAMES = new Set([
+  'doc',
+  'docs',
+  'example',
+  'examples',
+  'test',
+  'tests',
+  '__tests__',
+  'fixtures',
+  '.github',
+  'i18n',
+]);
+
+/** File-name predicates for pruning under layer node_modules only. */
+const PRUNE_FILE_MATCHERS = [
+  (name) => /\.md$/i.test(name),
+  (name) => /^README/i.test(name),
+  (name) => /^CHANGELOG/i.test(name),
+  (name) => /^HISTORY/i.test(name),
+  (name) => /^CONTRIBUTING/i.test(name),
+  (name) => /^AUTHORS/i.test(name),
+  (name) => /^LICENSE/i.test(name),
+  (name) => /\.test\.js$/i.test(name),
+  (name) => /\.spec\.js$/i.test(name),
+  (name) => /\.map$/i.test(name),
+  (name) => /\.d\.ts$/i.test(name),
+  (name) => name === 'tsconfig.json',
+  (name) => name === 'jsconfig.json',
+  (name) => name === 'Makefile',
+  (name) => name === '.eslintrc.js',
+];
+
+/**
+ * Option C: refuse paths outside the layer root (follows symlinks/junctions).
+ * @param {string} layerDir
+ * @param {string} targetPath
+ * @returns {Promise<string>} resolved absolute path safe to touch
+ */
+async function assertUnderLayer(layerDir, targetPath) {
+  const root = await fs.realpath(layerDir);
+  let resolved;
+  try {
+    resolved = await fs.realpath(targetPath);
+  } catch {
+    resolved = path.resolve(targetPath);
+  }
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(
+      `Refusing to touch path outside layer: ${resolved} (layer root: ${root})`
+    );
+  }
+  return resolved;
+}
+
+/**
+ * Option B/C: remove only when the target resolves inside layerDir.
+ * @param {string} layerDir
+ * @param {string} targetPath
+ */
+async function safeRemove(layerDir, targetPath) {
+  if (!(await fs.pathExists(targetPath))) {
+    return;
+  }
+  await assertUnderLayer(layerDir, targetPath);
+  console.log(`   - Removing ${targetPath}`);
+  await fs.remove(targetPath);
+}
+
+/**
+ * Option B: walk layer node_modules and prune known cruft without repo-wide globs.
+ * @param {string} layerDir
+ * @param {string} nodeModulesDir
+ */
+async function pruneLayerNodeModules(layerDir, nodeModulesDir) {
+  await assertUnderLayer(layerDir, nodeModulesDir);
+
+  async function walk(dir) {
+    await assertUnderLayer(layerDir, dir);
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch (err) {
+      console.warn(`   - skip unreadable ${dir}: ${err.message}`);
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (PRUNE_DIR_NAMES.has(entry.name)) {
+          await safeRemove(layerDir, fullPath);
+        } else {
+          await walk(fullPath);
+        }
+      } else if (entry.isFile() && PRUNE_FILE_MATCHERS.some((match) => match(entry.name))) {
+        await safeRemove(layerDir, fullPath);
+      }
+    }
+  }
+
+  if (await fs.pathExists(nodeModulesDir)) {
+    await walk(nodeModulesDir);
+  }
+}
+
 /**
  * Creates a Lambda layer with specified packages and their production dependencies.
  * @param {string} layerName - The name of the layer directory to create.
@@ -49,34 +156,30 @@ async function createLayer(layerName, packagesToInclude) {
   console.log(`Installing dependencies for ${layerName} layer...`);
   execSync('npm install --omit=dev', { cwd: nodejsDir, stdio: 'inherit' });
 
+  const nodeModulesDir = path.join(nodejsDir, 'node_modules');
+  await assertUnderLayer(layerDir, nodeModulesDir);
+
   // WORKAROUND: If building the gameslib layer, forcefully remove renderer dependencies.
   // The "correct" fix is to publish a new version of gameslib with renderer as a devDependency.
   // Which I've done, but it doesn't appear to be working. So forcing the issue for now.
   if (layerName === 'abstractplay-gameslib') {
     console.log('Pruning renderer dependencies from gameslib layer as a workaround...');
-    const packagesToRemoveGlob = [
-      'node_modules/@abstractplay/renderer',
-      'node_modules/@sparticuz/chromium',
-      'node_modules/puppeteer-core'
+    const packagesToRemove = [
+      path.join(nodejsDir, 'node_modules', '@abstractplay', 'renderer'),
+      path.join(nodejsDir, 'node_modules', '@sparticuz', 'chromium'),
+      path.join(nodejsDir, 'node_modules', 'puppeteer-core'),
     ];
-    // Use rimraf for robust deletion. It's in devDependencies.
-    execSync(`npx rimraf ${packagesToRemoveGlob.join(' ')}`, { cwd: nodejsDir, stdio: 'inherit' });
+    for (const pkgPath of packagesToRemove) {
+      await safeRemove(layerDir, pkgPath);
+    }
   }
 
   // 4. Prune unnecessary files to reduce layer size
   console.log(`Pruning files for ${layerName} layer...`);
   if (layerName === 'abstractplay-gameslib') {
     const gameslibDir = path.join(nodejsDir, 'node_modules', '@abstractplay', 'gameslib');
-    const toRemove = [
-      'docs',
-      'README.md',
-    ];
-    for (const item of toRemove) {
-      const itemPath = path.join(gameslibDir, item);
-      if (await fs.pathExists(itemPath)) {
-        console.log(`   - Removing ${itemPath}`);
-        await fs.remove(itemPath);
-      }
+    for (const item of ['docs', 'README.md']) {
+      await safeRemove(layerDir, path.join(gameslibDir, item));
     }
     // file: deps can resolve to broken junctions on Windows; copy en locales from the project install.
     const sourceLocalesEn = path.resolve(__dirname, '../node_modules/@abstractplay/gameslib/locales/en');
@@ -92,57 +195,15 @@ async function createLayer(layerName, packagesToInclude) {
       const localeLangs = await fs.readdir(localesDir);
       for (const lang of localeLangs) {
         if (lang !== 'en') {
-          const langPath = path.join(localesDir, lang);
-          console.log(`   - Removing non-English locale ${langPath}`);
-          await fs.remove(langPath);
+          await safeRemove(layerDir, path.join(localesDir, lang));
         }
       }
     }
   }
 
-  // 5. Aggressively prune all node_modules to reduce size
+  // 5. Aggressively prune all node_modules to reduce size (scoped to layer tree only)
   console.log(`Aggressively pruning all node_modules for ${layerName} layer...`);
-  const nodeModulesDir = path.join(nodejsDir, 'node_modules'); // We'll execute from here
-  const patternsToRemove = [
-    // Documentation and metadata
-    '**/*.md',
-    '**/README*',
-    '**/CHANGELOG*',
-    '**/HISTORY*',
-    '**/CONTRIBUTING*',
-    '**/AUTHORS*',
-    '**/LICENSE*',
-    '**/.github',
-    // Examples and tests
-    '**/example',
-    '**/examples',
-    '**/test',
-    '**/tests',
-    '**/__tests__',
-    '**/*.test.js',
-    '**/*.spec.js',
-    '**/fixtures',
-    // Build artifacts and configs
-    '**/*.map',
-    '**/*.d.ts',
-    '**/tsconfig.json',
-    '**/jsconfig.json',
-    '**/Makefile',
-    '**/.eslintrc.js',
-    // Localization (gameslib en/ locales are preserved above)
-    '**/doc',
-    '**/docs',
-    '**/i18n',
-  ];
-
-  const { rimrafSync } = require('rimraf');
-  for (const pattern of patternsToRemove) {
-    try {
-      rimrafSync(pattern, { cwd: nodeModulesDir, glob: true });
-    } catch (err) {
-      console.warn(`   - rimraf ${pattern}: ${err.message}`);
-    }
-  }
+  await pruneLayerNodeModules(layerDir, nodeModulesDir);
 
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
