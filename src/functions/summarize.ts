@@ -5,8 +5,7 @@ import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { isoToCountryCode } from "../utils/isoToCountryCode.js";
 import { Handler } from "aws-lambda";
 import { type IRating, type IGlickoRating, APGameRecord, ELOBasic, Glicko2, type ITrueskillRating, Trueskill } from "@abstractplay/recranks";
-import { gameinfo } from "@abstractplay/gameslib";
-import { replacer } from "@abstractplay/gameslib/build/src/common/serialization.js";
+import { gameinfo, replacer } from "../gameslibRequire.js";
 import type { UserRating, StatSummary } from "types/index.js";
 import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats } from "types/index.js";
 import {
