@@ -9,7 +9,8 @@ import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec, type Tournament, type OrgEvent, type OrgEventGame } from "types/index.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
-// import enGames from "../node_modules/@abstractplay/gameslib/locales/en/apgames.json";
+import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { type: "json" };
+import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
 import enBack from "../locales/en/apback.json";
 
 const REGION = "us-east-1";
@@ -38,7 +39,9 @@ export const handler: Handler = async (event: any, context?: any) => {
     if (!i18nInstance.isInitialized) {
         throw new Error(`i18n is not initialized where it should be!`);
     }
-    addResource("en");
+    addResource("en", undefined, {
+        bundles: { apgames: enApgames, apresults: enApresults },
+    });
     // scan bucket for data folder
     const command = new ListObjectsV2Command({
         Bucket: DUMP_BUCKET,

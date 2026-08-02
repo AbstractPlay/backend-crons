@@ -30,7 +30,7 @@ Functions that call `@abstractplay/gameslib` attach the `abstractplayGameslib` l
 
 - Bundles `@abstractplay/gameslib` and `@abstractplay/recranks` into `.serverless/layers/abstractplay-gameslib`
 - Strips `@abstractplay/renderer` (transitive dep, not needed at runtime)
-- Prunes docs, tests, and locales from the layer to stay under Lambda size limits
+- Prunes docs and tests from the layer to stay under Lambda size limits; retains gameslib `locales/en/` for variant name resolution during record generation
 
 esbuild marks `@abstractplay/gameslib` and `@abstractplay/recranks` as **external** so they resolve from the layer at runtime, not from the function bundle.
 

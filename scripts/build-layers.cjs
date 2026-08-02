@@ -28,8 +28,12 @@ async function createLayer(layerName, packagesToInclude) {
   };
 
   for (const pkg of packagesToInclude) {
-    const version = rootPackageJson.dependencies?.[pkg] || rootPackageJson.devDependencies?.[pkg];
+    let version = rootPackageJson.dependencies?.[pkg] || rootPackageJson.devDependencies?.[pkg];
     if (!version) throw new Error(`Could not find ${pkg} in package.json`);
+    if (version.startsWith('file:')) {
+      const rel = version.slice('file:'.length);
+      version = `file:${path.resolve(__dirname, '..', rel)}`;
+    }
     layerPackageJson.dependencies[pkg] = version;
   }
 
@@ -66,13 +70,32 @@ async function createLayer(layerName, packagesToInclude) {
     const toRemove = [
       'docs',
       'README.md',
-      'locales',
     ];
     for (const item of toRemove) {
       const itemPath = path.join(gameslibDir, item);
       if (await fs.pathExists(itemPath)) {
         console.log(`   - Removing ${itemPath}`);
         await fs.remove(itemPath);
+      }
+    }
+    // file: deps can resolve to broken junctions on Windows; copy en locales from the project install.
+    const sourceLocalesEn = path.resolve(__dirname, '../node_modules/@abstractplay/gameslib/locales/en');
+    const targetLocalesEn = path.join(gameslibDir, 'locales', 'en');
+    if (await fs.pathExists(sourceLocalesEn)) {
+      await fs.ensureDir(path.join(gameslibDir, 'locales'));
+      await fs.copy(sourceLocalesEn, targetLocalesEn, { overwrite: true });
+      console.log(`   - Ensured English locale bundles in layer gameslib`);
+    }
+    // Drop non-English locale languages to save layer size.
+    const localesDir = path.join(gameslibDir, 'locales');
+    if (await fs.pathExists(localesDir)) {
+      const localeLangs = await fs.readdir(localesDir);
+      for (const lang of localeLangs) {
+        if (lang !== 'en') {
+          const langPath = path.join(localesDir, lang);
+          console.log(`   - Removing non-English locale ${langPath}`);
+          await fs.remove(langPath);
+        }
       }
     }
   }
@@ -106,14 +129,20 @@ async function createLayer(layerName, packagesToInclude) {
     '**/jsconfig.json',
     '**/Makefile',
     '**/.eslintrc.js',
-    // Localization
+    // Localization (gameslib en/ locales are preserved above)
     '**/doc',
     '**/docs',
     '**/i18n',
-    '**/locales',
-  ].join(' '); // Use relative paths from node_modules
+  ];
 
-  execSync(`npx rimraf ${patternsToRemove}`, { cwd: nodeModulesDir, stdio: 'inherit' }); // rimraf handles glob patterns internally
+  const { rimrafSync } = require('rimraf');
+  for (const pattern of patternsToRemove) {
+    try {
+      rimrafSync(pattern, { cwd: nodeModulesDir, glob: true });
+    } catch (err) {
+      console.warn(`   - rimraf ${pattern}: ${err.message}`);
+    }
+  }
 
   console.log(`✅ ${layerName} layer created successfully in .serverless/layers/${layerName}`);
 }
