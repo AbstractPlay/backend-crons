@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/AbstractPlay/backend-crons#readme",
   "dependencies": {
-    "@abstractplay/gameslib": "1.0.0-ci-30499004629.0",
+    "@abstractplay/gameslib": "file:../gameslib/abstractplay-gameslib-1.0.0-beta.tgz",
     "@abstractplay/recranks": "latest",
     "@abstractplay/renderer": "1.0.0-ci-30491195223.0",
     "@aws-sdk/client-dynamodb": "^3.321.1",
