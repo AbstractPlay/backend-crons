@@ -10,6 +10,7 @@
     "build-ts": "tsc",
     "build": "eslint",
     "build:layers": "node scripts/build-layers.cjs",
+    "run-records-pipeline": "node bin/run-records-pipeline.mjs",
     "deploy-dev": "serverless deploy",
     "deploy-prod": "serverless --stage prod deploy",
     "full-dev": "npm run clean && npm run build && serverless deploy",
