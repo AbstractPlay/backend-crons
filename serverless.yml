@@ -86,6 +86,7 @@ provider:
         - Effect: "Allow"
           Action:
             - "s3:PutObject"
+            - "s3:DeleteObject"
           Resource:
             - "arn:aws:s3:::records.abstractplay.com/*"
             - "arn:aws:s3:::thumbnails.abstractplay.com/*"
