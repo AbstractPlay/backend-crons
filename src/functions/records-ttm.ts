@@ -6,6 +6,7 @@ import { GameFactory } from '@abstractplay/gameslib';
 import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec } from "types/index.js";
+import { decompressGameState } from "../utils/gameState.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
@@ -111,7 +112,7 @@ export const handler: Handler = async (event: any, context?: any) => {
     }
     const ttm = new Map<string, number[]>();
     for (const gdata of justGames) {
-        const g = GameFactory(gdata.metaGame, gdata.state);
+        const g = GameFactory(gdata.metaGame, decompressGameState(gdata.state));
         if (g === undefined) {
             throw new Error(`Unable to instantiate ${gdata.metaGame} game ${gdata.id}:\n${JSON.stringify(gdata.state)}`);
         }
