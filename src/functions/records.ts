@@ -11,6 +11,7 @@ import i18next from "i18next";
 import type { i18n } from "i18next";
 import { enApgames, enApresults } from "../gameslibLocales.js";
 import enBack from "../locales/en/apback.json";
+import { decompressGameState } from "../utils/gameState.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
@@ -157,7 +158,7 @@ export const handler: Handler = async (event: any, context?: any) => {
     const userRecs = new Map<string, APGameRecord[]>();
     const eventRecs = new Map<string, APGameRecord[]>();
     for (const gdata of justGames) {
-        const g = GameFactory(gdata.metaGame, gdata.state);
+        const g = GameFactory(gdata.metaGame, decompressGameState(gdata.state));
         if (g === undefined) {
             throw new Error(`Unable to instantiate ${gdata.metaGame} game ${gdata.id}:\n${JSON.stringify(gdata.state)}`);
         }
@@ -278,6 +279,6 @@ export const handler: Handler = async (event: any, context?: any) => {
     console.log("ALL DONE");
   })
   .catch(err => {
-    throw new Error(`An error occurred while initializing i18next:\n${err}`);
+    throw new Error(`records handler failed:\n${err}`);
   }));
 };
