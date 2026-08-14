@@ -39,7 +39,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `metaStats` | Per-meta two-player stats including `drawRate` |
 | `hMeta` | Per-meta h-index (breadth of participation) |
 | `geoStats` | Registered users by country (live `USERS` table) |
-| `activeGeoStats` | Players with ≥1 completed game, by profile country |
+| `activeGeoStats` | Players who completed a game in the past 30 days, by profile country |
 | `rivalries` | Top anonymized two-player pair frequencies (public) |
 | `seasonality` | Move-time activity by UTC day/hour (copied from `mvtimes.json`; last 365 days) |
 
@@ -114,7 +114,8 @@ Outputs:
 | Key | Meaning |
 |-----|---------|
 | `all` | Completed games per week |
-| `allPlayers` | Distinct players completing games per week |
+| `allPlayers` | Distinct players **completing** a game per week |
+| `activeMovers` | Distinct players who made **≥1 move** per week (from move timestamps; ~1y of move data) |
 | `meta`, `players` | Per-game and per-player weekly counts |
 | `playerTimeouts` | Per-player timeout counts over time |
 | `firstTimers` | Users completing their first game that week |
@@ -123,6 +124,8 @@ Outputs:
 | `abandoned` | Abandonment rate per week |
 
 Week buckets align from `oldestRec`; the right-most bucket may be partial.
+
+**`activeMovers` vs `allPlayers`:** finishers vs players who moved in any game that week (including in-progress async games). Sourced from `mvtimes.json`; only ~365 days of move timestamps are available, so early buckets may be zero.
 
 ### Recent activity (`recent`)
 
@@ -144,7 +147,7 @@ Excludes games ending by clock timeout or abandonment and games with fewer than 
 ### Geographic stats
 
 - **`geoStats`** — all registered users with a recognized country on their profile (`pk=USERS` query, `isoToCountryCode`)
-- **`activeGeoStats`** — subset of players who appear in at least one completed game, grouped by the same country mapping
+- **`activeGeoStats`** — players who completed at least one game in the **past 30 days** (from `ALL.json` completion timestamps), grouped by the same country mapping
 
 ### Play context (`playContext`)
 

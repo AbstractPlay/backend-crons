@@ -45,10 +45,10 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `ratings` | ELO/Glicko/Trueskill aggregates (`highest`, `avg`, `weighted`) |
 | `topPlayers` | Top-rated player/game pairs |
 | `plays`, `players` | Game and player activity rankings |
-| `histograms` | Play-count distributions, first-timers, returning players, timeout/abandonment rates |
+| `histograms` | Play-count distributions, first-timers, returning players, weekly active movers, timeout/abandonment rates |
 | `metaStats` | Per-game two-player stats (length, first-player win rate, draw rate) |
 | `geoStats` | Registered user counts by country (from live USERS table) |
-| `activeGeoStats` | Players with completed games, by profile country |
+| `activeGeoStats` | Players who completed a game in the past 30 days, by profile country |
 | `rivalries` | Top anonymized two-player pair frequencies (no user IDs) |
 | `seasonality` | Move-time activity by UTC day/hour (from `mvtimes.json`; last 365 days) |
 | `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p2–p98) hours per move site-wide |
@@ -65,8 +65,9 @@ Produced by `records-move-times`. Object with:
 | `players1w`, … | Distinct active players by meta game per window |
 | `playersSum1w`, … | Cumulative unique-player scores by meta game |
 | `seasonality` | Site-wide move activity bins (last 365 days): `{ movesByDow, playersByDow, movesByHour, windowDays }` |
+| `weeklyActiveMovers` | `{ originMs, byWeek }` — distinct players with ≥1 move per seven-day bucket (same origin as completion histograms; move data ~1y) |
 
-`summarize` copies `seasonality` into `_summary.json` for the stats front end. Bins use UTC move timestamps from the DynamoDB game stack, not game completion times.
+`summarize` copies `seasonality` and aligns `weeklyActiveMovers` into `_summary.json` (`histograms.activeMovers`).
 
 ## `recommendations/cooccur.json`
 

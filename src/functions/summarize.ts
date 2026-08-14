@@ -7,6 +7,7 @@ import { Handler } from "aws-lambda";
 import { type IRating, type IGlickoRating, APGameRecord, ELOBasic, Glicko2, type ITrueskillRating, Trueskill } from "@abstractplay/recranks";
 import { gameinfo, replacer } from "../gameslibRequire.js";
 import type { UserRating, StatSummary, RivalriesFull } from "types/index.js";
+import { alignWeeklyActiveMovers } from "../utils/moveSeasonality.js";
 import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats, MetaPieStats, MetaPlayerCountMix, PlayContextStats, SeasonalityStats } from "types/index.js";
 import {
     GLICKO_PERIOD_MS,
@@ -77,7 +78,10 @@ function emptyMoveSeasonality(): SeasonalityStats {
     };
 }
 
-async function loadMoveSeasonality(): Promise<SeasonalityStats> {
+async function loadMvtimes(): Promise<{
+    seasonality: SeasonalityStats;
+    weeklyActiveMovers?: { originMs: number; byWeek: number[] };
+}> {
     try {
         const response = await s3.send(new GetObjectCommand({
             Bucket: REC_BUCKET,
@@ -85,17 +89,22 @@ async function loadMoveSeasonality(): Promise<SeasonalityStats> {
         }));
         const str = await response.Body?.transformToString();
         if (str === undefined) {
-            return emptyMoveSeasonality();
+            return { seasonality: emptyMoveSeasonality() };
         }
-        const parsed = JSON.parse(str) as { seasonality?: SeasonalityStats };
+        const parsed = JSON.parse(str) as {
+            seasonality?: SeasonalityStats;
+            weeklyActiveMovers?: { originMs: number; byWeek: number[] };
+        };
         if (parsed.seasonality === undefined) {
             console.log("mvtimes.json has no seasonality field; using empty bins");
-            return emptyMoveSeasonality();
         }
-        return parsed.seasonality;
+        return {
+            seasonality: parsed.seasonality ?? emptyMoveSeasonality(),
+            weeklyActiveMovers: parsed.weeklyActiveMovers,
+        };
     } catch (err) {
-        console.log(`Could not load move seasonality from ${MVTIMES_KEY}: ${err}`);
-        return emptyMoveSeasonality();
+        console.log(`Could not load ${MVTIMES_KEY}: ${err}`);
+        return { seasonality: emptyMoveSeasonality() };
     }
 }
 
@@ -767,7 +776,20 @@ export const handler: Handler = async (event: any, context?: any) => {
             geoStats.push({code: alpha2, n: count, name: name || alpha2});
         }
         const activeCountryCounts = new Map<string, number>();
-        for (const uid of playerIDs) {
+        const activeGeoCutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const recentCompleterIDs = new Set<string>();
+        for (const rec of recs) {
+            const completedMs = new Date(rec.header["date-end"]).getTime();
+            if (completedMs < activeGeoCutoffMs) {
+                continue;
+            }
+            for (const p of rec.header.players) {
+                if (p.userid !== undefined) {
+                    recentCompleterIDs.add(p.userid);
+                }
+            }
+        }
+        for (const uid of recentCompleterIDs) {
             const alpha2 = userCountry.get(uid);
             if (alpha2 !== undefined) {
                 activeCountryCounts.set(alpha2, (activeCountryCounts.get(alpha2) ?? 0) + 1);
@@ -785,7 +807,9 @@ export const handler: Handler = async (event: any, context?: any) => {
         const publicRivalries = anonymizeRivalries(
             identifiedRivalryPairs.slice(0, RIVALRY_PUBLIC_TOP_N),
         );
-        const seasonality = await loadMoveSeasonality();
+        const mvtimes = await loadMvtimes();
+        const seasonality = mvtimes.seasonality;
+        const activeMovers = alignWeeklyActiveMovers(mvtimes.weeklyActiveMovers, earliest, maxBucket);
         const rivalriesIdentified: RivalriesFull = {
             generated: new Date().toISOString(),
             minGames: RIVALRY_MIN_GAMES,
@@ -823,6 +847,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             histograms: {
                 all: histAll,
                 allPlayers: histAllPlayers,
+                activeMovers,
                 playerTimeouts: histPlayerTimeouts,
                 meta: histMeta,
                 players: histPlayers,

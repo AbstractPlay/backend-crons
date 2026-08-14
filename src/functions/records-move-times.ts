@@ -7,8 +7,9 @@ import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec, type MoveRec } from "types/index.js";
 import { decompressGameState } from "../utils/gameState.js";
-import { computeMoveSeasonality, MOVE_SEASONALITY_WINDOW_DAYS } from "../utils/moveSeasonality.js";
+import { computeMoveSeasonality, computeWeeklyActiveMovers, MOVE_SEASONALITY_WINDOW_DAYS } from "../utils/moveSeasonality.js";
 import type { SeasonalityStats } from "types/stats/SeasonalityStats.js";
+import type { WeeklyActiveMovers } from "../utils/moveSeasonality.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
@@ -34,6 +35,7 @@ type SummaryRec = {
     playersSum6m: Entry[];
     playersSum1y: Entry[];
     seasonality: SeasonalityStats;
+    weeklyActiveMovers: WeeklyActiveMovers;
 };
 
 export const handler: Handler = async (event: any, context?: any) => {
@@ -168,6 +170,25 @@ export const handler: Handler = async (event: any, context?: any) => {
     }
     console.log(`num mv records: ${mvTimes1y.length}`);
 
+    let histogramOriginMs = cutoff1y;
+    try {
+        const allResponse = await s3.send(new GetObjectCommand({
+            Bucket: REC_BUCKET,
+            Key: "ALL.json",
+        }));
+        const allBody = await allResponse.Body?.transformToString();
+        if (allBody !== undefined) {
+            const allRecs = JSON.parse(allBody) as { header: { "date-end": string } }[];
+            if (allRecs.length > 0) {
+                histogramOriginMs = Math.min(
+                    ...allRecs.map((rec) => new Date(rec.header["date-end"]).getTime()),
+                );
+            }
+        }
+    } catch (err) {
+        console.log(`Could not load ALL.json for weekly mover bucket origin; using 1y cutoff: ${err}`);
+    }
+
     // assemble raw scores
     const raw1w: Entry[] = [];
     const raw1m: Entry[] = [];
@@ -287,6 +308,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         playersSum6m,
         playersSum1y,
         seasonality: computeMoveSeasonality(mvTimes1y, MOVE_SEASONALITY_WINDOW_DAYS),
+        weeklyActiveMovers: computeWeeklyActiveMovers(mvTimes1y, histogramOriginMs),
     };
 
     // write files to S3
