@@ -2,18 +2,19 @@
 
 Scheduled AWS Lambda jobs for Abstract Play: DynamoDB exports, static game records on S3, site-wide analytics, and live tournament/challenge automation.
 
-This repo complements [node-backend](/backend/) — the API writes live game state to DynamoDB; crons read that data (via weekly exports or live queries) and publish derived artifacts to S3 and CloudFront.
+This repo complements [node-backend](/backend/) — the API writes live game state to DynamoDB; crons read that data (via daily exports or live queries) and publish derived artifacts to S3 and CloudFront.
 
 ## Documentation
 
 - [Architecture](/crons/architecture/) — Serverless layout, schedules, layers, IAM
 - [Getting started](/crons/getting-started/) — local setup, layers, invocation
 - [Deployment](/crons/deployment/) — CI/CD, stages, upstream triggers
-- [Records pipeline](/crons/pipeline/) — Sunday batch and daily summarize flow
+- [Records pipeline](/crons/pipeline/) — daily batch and summarize flow
 - [Functions reference](/crons/functions/) — per-Lambda inputs, outputs, schedules
 - [S3 outputs](/crons/s3-outputs/) — bucket keys and JSON shapes
 - [Summarize](/crons/summarize/) — `_summary.json` metrics and rating logic
 - [Live crons](/crons/live-crons/) — tournaments and standing challenges
+- [Recommendation co-occurrence](/crons/recommendations-cooccur/) — `cooccur.json` for game recommendations
 
 ## Key resources
 

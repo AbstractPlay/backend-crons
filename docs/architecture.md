@@ -8,16 +8,17 @@ There is no API Gateway — these are batch and maintenance jobs only.
 
 ## Lambda functions
 
-Defined in [`serverless.yml`](../serverless.yml):
+Defined in [`serverless.yml`](../serverless.yml). Schedules are **daily** unless noted (EventBridge `cron(0 H * * ? *)` = every day at hour H UTC).
 
 | Function | Schedule (UTC, prod) | Role |
 |----------|----------------------|------|
-| `dumpdb` | Sun 00:00 | Export prod DynamoDB to S3 |
-| `records` | Sun 03:00 | Build game records from dump |
-| `records-ttm` | Sun 03:00 | Per-player time-to-move arrays |
-| `records-move-times` | Sun 03:00 | Move activity histograms (180 days) |
-| `tournament-data` | Sun 03:00 | Tournament summaries from dump |
-| `records-manifest` | Sun 04:00 and 07:00 | S3 listing + CloudFront invalidation |
+| `dumpdb` | Daily 00:00 | Export prod DynamoDB to S3 |
+| `records` | Daily 03:00 | Build game records from dump |
+| `records-ttm` | Daily 03:00 | Per-player time-to-move arrays |
+| `records-move-times` | Daily 03:00 | Move activity histograms |
+| `records-cooccur` | Daily 03:00 | PMI co-occurrence for recommendations |
+| `tournament-data` | Daily 03:00 | Tournament summaries from dump |
+| `records-manifest` | Daily 04:00 and 07:00 | S3 listing + CloudFront invalidation |
 | `summarize` | Daily 06:00 | Site analytics from `ALL.json` |
 | `starttournaments` | Daily 10:00 and 22:00 | Start/cancel tournaments, create games |
 | `standingchallenges` | Daily 00:00 and 12:00 | Process preset standing challenges |
@@ -41,7 +42,9 @@ flowchart LR
     ddb[(DynamoDB abstract-play-prod)] --> dumpdb
     dumpdb --> s3dump[(S3 abstractplay-db-dump)]
     s3dump --> records
+    s3dump --> cooccur[records-cooccur]
     records --> s3rec[(S3 records.abstractplay.com)]
+    cooccur --> s3rec
     s3rec --> summarize
     summarize --> s3rec
     ddb --> live[Live crons]
@@ -73,13 +76,15 @@ The service role grants:
 | `ion-js`, `fflate` | dump consumers | Parse gzipped ION export files |
 | `i18next` | records, starttournaments | Email copy (`apback` namespace) |
 
+`records-cooccur` uses `ion-js` and `fflate` only (no gameslib layer).
+
 ## Project layout
 
 ```
 src/functions/     Lambda handlers
 src/types/         Record and StatSummary TypeScript types
 src/locales/       i18n strings (en, fr, it) for tournament emails
-src/utils/         Shared utilities (e.g. isoToCountryCode)
+src/utils/         Shared utilities (e.g. isoToCountryCode, cooccurPmi)
 scripts/           build-layers.cjs
 serverless.yml     Infrastructure and schedules
 ```

@@ -1,6 +1,6 @@
 # Live crons
 
-Two functions operate on **live DynamoDB** rather than the weekly S3 dump. They run on prod schedules and mutate game/tournament/challenge state directly.
+Two functions operate on **live DynamoDB** rather than the daily S3 dump. They run on prod schedules and mutate game/tournament/challenge state directly.
 
 ## `starttournaments`
 

@@ -102,7 +102,7 @@ functions:
           name: abstractplay-${self:provider.stage}-dumpdb
           description: Triggers a full export of production DB to S3
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # midnight UTC every Sunday
+          # midnight UTC daily
           schedule: cron(0 0 * * ? *)
 
   records:
@@ -118,7 +118,7 @@ functions:
           name: abstractplay-${self:provider.stage}-records
           description: Generates static lists of game records
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 3am UTC every sunday (giving the dump plenty of time to complete)
+          # 3am UTC daily (uses latest completed dump by LastModified)
           schedule: cron(0 3 * * ? *)
 
   records-ttm:
@@ -134,7 +134,7 @@ functions:
           name: abstractplay-${self:provider.stage}-records-ttm
           description: Generates static time-to-move results of each game
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 3am UTC every sunday (giving the dump plenty of time to complete)
+          # 3am UTC daily (uses latest completed dump by LastModified)
           schedule: cron(0 3 * * ? *)
 
   records-move-times:
@@ -150,7 +150,21 @@ functions:
           name: abstractplay-${self:provider.stage}-records-move-times
           description: Generates list of moves made in past 180 days
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 3am UTC every sunday (giving the dump plenty of time to complete)
+          # 3am UTC daily (uses latest completed dump by LastModified)
+          schedule: cron(0 3 * * ? *)
+
+  records-cooccur:
+    handler: src/functions/records-cooccur.handler
+    description: Builds PMI game co-occurrence matrix for recommendations
+    timeout: 900
+    memorySize: 10240
+    logRetentionInDays: 30
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-records-cooccur
+          description: Builds PMI game co-occurrence matrix for recommendations
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 3am UTC daily (uses latest completed dump by LastModified)
           schedule: cron(0 3 * * ? *)
 
   records-manifest:
@@ -166,8 +180,7 @@ functions:
           name: abstractplay-${self:provider.stage}-records-manifest
           description: Generates static time-to-move results of each game
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 4am UTC every sunday (giving the various records scripts time to complete)
-          # then run again after summarize
+          # 4am and 7am UTC daily (after batch jobs; 7am pass picks up summarize output)
           schedule: cron(0 4,7 * * ? *)
 
   summarize:
@@ -196,7 +209,7 @@ functions:
           name: abstractplay-${self:provider.stage}-tournament-data
           description: Summarizes tournament data
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 3am UTC every sunday (giving the dump plenty of time to complete)
+          # 3am UTC daily (uses latest completed dump by LastModified)
           schedule: cron(0 3 * * ? *)
 
   starttournaments:

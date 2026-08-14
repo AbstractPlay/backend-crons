@@ -6,6 +6,7 @@
   { "slug": "pipeline", "title": "Records pipeline" },
   { "slug": "functions", "title": "Functions reference" },
   { "slug": "s3-outputs", "title": "S3 outputs" },
+  { "slug": "recommendations-cooccur", "title": "Recommendation co-occurrence" },
   { "slug": "summarize" },
   { "slug": "live-crons", "title": "Live crons" }
 ]

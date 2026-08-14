@@ -1,6 +1,6 @@
 # S3 outputs
 
-Static artifacts are published to **`records.abstractplay.com`** (S3 + CloudFront). The weekly DynamoDB export lands in **`abstractplay-db-dump`**.
+Static artifacts are published to **`records.abstractplay.com`** (S3 + CloudFront). DynamoDB exports land in **`abstractplay-db-dump`** daily (`dumpdb`); batch jobs read the latest completed export.
 
 ## Records bucket layout
 
@@ -14,6 +14,7 @@ Static artifacts are published to **`records.abstractplay.com`** (S3 + CloudFron
 | `event/{eventId}.json` | `records` | Game records for a tournament or org event |
 | `ttm/{playerId}.json` | `records-ttm` | Array of inter-move durations (milliseconds) |
 | `mvtimes.json` | `records-move-times` | Move activity counts by meta game and time window |
+| `recommendations/cooccur.json` | `records-cooccur` | PMI co-occurrence matrix for game recommendations |
 | `tournament-summary.json` | `tournament-data` | Per-player tournament aggregate stats |
 | `player/tournaments/{playerId}.json` | `tournament-data` | Individual tournament results for one player |
 
@@ -51,6 +52,10 @@ Full field documentation: [Summarize](/crons/summarize/).
 
 Object with keys `raw1w`, `raw1m`, `raw6m`, `raw1y`, `players1w`, … — each an array of `{ metaGame, score }` entries counting moves or unique players in that window.
 
+## `recommendations/cooccur.json`
+
+PMI-normalized co-occurrence neighbors per meta-game for the hybrid recommender. Includes optional stars boost (`includeStarredBoost`). Full schema and algorithm: [Recommendation co-occurrence](/crons/recommendations-cooccur/).
+
 ## Dump bucket layout
 
 Exports from `dumpdb` appear under:
@@ -60,7 +65,7 @@ AWSDynamoDB/{export-uid}/manifest-summary.json
 AWSDynamoDB/{export-uid}/data/*.ion.gz
 ```
 
-Batch functions locate the newest `manifest-summary.json`, extract the UID, and read all `data/*.ion.gz` files for that export.
+Batch functions locate the newest `manifest-summary.json`, extract the UID, and read all `data/*.gz` files for that export.
 
 ## CloudFront
 
@@ -69,5 +74,6 @@ Batch functions locate the newest `manifest-summary.json`, extract the UID, and 
 ## Related
 
 - [Records pipeline](/crons/pipeline/)
+- [Recommendation co-occurrence](/crons/recommendations-cooccur/)
 - [Recranks schema reference](/recranks/schema-reference/)
 - [Functions reference](/crons/functions/)
