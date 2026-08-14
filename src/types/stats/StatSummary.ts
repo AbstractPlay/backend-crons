@@ -50,6 +50,7 @@ export type StatSummary = {
         playerTimeouts: UserNumList[];
         firstTimers: number[];
         returningPlayers: number[];
+        activeMovers: number[];
         timeouts: number[];
         abandoned: number[];
     };

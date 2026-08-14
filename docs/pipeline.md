@@ -64,7 +64,7 @@ Same dump ingestion, but computes per-player inter-move durations from the game 
 
 ### `records-move-times`
 
-Builds move-activity summaries over 7, 30, 180, and 365-day windows, plus site-wide move-time seasonality (DOW/hour bins). Writes `mvtimes.json`.
+Builds move-activity summaries over 7, 30, 180, and 365-day windows, plus site-wide move-time seasonality (DOW/hour bins) and **`weeklyActiveMovers`** (distinct players with ≥1 move per seven-day bucket). Writes `mvtimes.json`.
 
 ### `records-cooccur`
 
