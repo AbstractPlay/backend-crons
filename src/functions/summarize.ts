@@ -22,7 +22,6 @@ import {
     findTimeoutPlayerSeat,
     gameSupportsMultiPlayerCount,
     gameSupportsPie,
-    HOURS_PER_MOVE_MAX,
     maxOf,
     type HoursPerGameInput,
     partitionByGlickoPeriod,
@@ -681,14 +680,10 @@ export const handler: Handler = async (event: any, context?: any) => {
             if (moveSlots <= 0) {
                 continue;
             }
-            const hours = ((completed - started) / moveSlots) / (60 * 60 * 1000);
-            if (hours > HOURS_PER_MOVE_MAX) {
-                console.log(`Excessive hoursPer found at record ${rec.header.site.gameid}`);
-                continue;
-            }
             hoursPerGames.push({ dateStartMs: started, dateEndMs: completed, moveSlots });
         }
-        const hoursPer = computeHoursPerStats(hoursPerGames, earliest);
+        const { winsorizedCount, ...hoursPer } = computeHoursPerStats(hoursPerGames, earliest);
+        console.log(`hoursPer winsorization: ${winsorizedCount} records outside p5-p95`);
 
         // gathering geographical statistics
         let users: Record<string, any>[]|undefined;

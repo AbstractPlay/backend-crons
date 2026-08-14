@@ -95,9 +95,24 @@ export function partitionByGlickoPeriod<T extends { dateEndMs: number }>(
     return buckets;
 }
 
-export const HOURS_PER_MOVE_MAX = 200;
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
+const HOURS_PER_WINSORIZE_LOW = 5;
+const HOURS_PER_WINSORIZE_HIGH = 95;
+
+export function percentileOf(nums: number[], p: number): number | undefined {
+    if (nums.length === 0) {
+        return undefined;
+    }
+    const sorted = [...nums].sort((a, b) => a - b);
+    const idx = (p / 100) * (sorted.length - 1);
+    const lower = Math.floor(idx);
+    const upper = Math.ceil(idx);
+    if (lower === upper) {
+        return sorted[lower];
+    }
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
+}
 
 export function medianOf(nums: number[]): number | undefined {
     if (nums.length === 0) {
@@ -123,44 +138,61 @@ export type HoursPerStatsResult = {
     median: number;
     n: number;
     byWeek: number[];
+    winsorizedCount: number;
+};
+
+type HoursPerGameComputed = HoursPerGameInput & {
+    hours: number;
+    bucket: number;
 };
 
 export function computeHoursPerStats(
     games: HoursPerGameInput[],
     earliestMs: number,
-    maxHours: number = HOURS_PER_MOVE_MAX,
 ): HoursPerStatsResult {
-    const perGameRates: number[] = [];
-    let totalDurationMs = 0;
-    let totalMoveSlots = 0;
-    const byWeekBuckets = new Map<number, number[]>();
-
+    const computed: HoursPerGameComputed[] = [];
     for (const game of games) {
         if (game.moveSlots <= 0) {
             continue;
         }
         const duration = game.dateEndMs - game.dateStartMs;
         const hours = (duration / game.moveSlots) / MS_PER_HOUR;
-        if (hours > maxHours) {
-            continue;
-        }
-        perGameRates.push(hours);
-        totalDurationMs += duration;
-        totalMoveSlots += game.moveSlots;
         const daysAgo = (game.dateEndMs - earliestMs) / MS_PER_DAY;
         const bucket = Math.floor(daysAgo / 7);
-        const lst = byWeekBuckets.get(bucket);
+        computed.push({ ...game, hours, bucket });
+    }
+
+    const rawRates = computed.map((g) => g.hours);
+    const pLow = percentileOf(rawRates, HOURS_PER_WINSORIZE_LOW);
+    const pHigh = percentileOf(rawRates, HOURS_PER_WINSORIZE_HIGH);
+    let winsorizedCount = 0;
+    let totalMoveSlots = 0;
+    let weightedHoursSum = 0;
+    const winsorizedRates: number[] = [];
+    const byWeekBuckets = new Map<number, number[]>();
+
+    for (const game of computed) {
+        let rate = game.hours;
+        if (pLow !== undefined && rate < pLow) {
+            winsorizedCount++;
+            rate = pLow;
+        } else if (pHigh !== undefined && rate > pHigh) {
+            winsorizedCount++;
+            rate = pHigh;
+        }
+        winsorizedRates.push(rate);
+        totalMoveSlots += game.moveSlots;
+        weightedHoursSum += rate * game.moveSlots;
+        const lst = byWeekBuckets.get(game.bucket);
         if (lst === undefined) {
-            byWeekBuckets.set(bucket, [hours]);
+            byWeekBuckets.set(game.bucket, [rate]);
         } else {
-            lst.push(hours);
+            lst.push(rate);
         }
     }
 
-    const mean = totalMoveSlots > 0
-        ? (totalDurationMs / totalMoveSlots) / MS_PER_HOUR
-        : 0;
-    const median = medianOf(perGameRates) ?? 0;
+    const mean = totalMoveSlots > 0 ? weightedHoursSum / totalMoveSlots : 0;
+    const median = medianOf(winsorizedRates) ?? 0;
     const maxBucket = maxOf([...byWeekBuckets.keys()]);
     const byWeek: number[] = [];
     for (let i = 0; i <= maxBucket; i++) {
@@ -170,8 +202,9 @@ export function computeHoursPerStats(
     return {
         mean,
         median,
-        n: perGameRates.length,
+        n: winsorizedRates.length,
         byWeek,
+        winsorizedCount,
     };
 }
 
