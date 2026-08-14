@@ -268,7 +268,7 @@ export function computeReturningPlayersPerWeek(
 }
 
 export const RIVALRY_MIN_GAMES = 5;
-export const RIVALRY_PUBLIC_TOP_N = 25;
+export const RIVALRY_PUBLIC_MIN_GAMES = 50;
 
 export function pairKey(userA: string, userB: string): string {
     return userA < userB ? `${userA}|${userB}` : `${userB}|${userA}`;

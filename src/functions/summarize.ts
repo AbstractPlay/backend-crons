@@ -19,7 +19,7 @@ import {
     enrichRivalryPairsWithDisplayNames,
     computeTimeoutHistogramRates,
     RIVALRY_MIN_GAMES,
-    RIVALRY_PUBLIC_TOP_N,
+    RIVALRY_PUBLIC_MIN_GAMES,
     findTimeoutPlayerSeat,
     gameSupportsMultiPlayerCount,
     gameSupportsPie,
@@ -809,7 +809,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         console.log("Calculating rivalries");
         const identifiedRivalryPairs = computeRivalryPairs(recs);
         const publicRivalries = publishRivalries(
-            identifiedRivalryPairs.slice(0, RIVALRY_PUBLIC_TOP_N),
+            identifiedRivalryPairs.filter((p) => p.n >= RIVALRY_PUBLIC_MIN_GAMES),
             publicRivalryUsers,
             userDisplayNames,
         );

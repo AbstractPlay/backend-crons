@@ -49,7 +49,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `metaStats` | Per-game two-player stats (length, first-player win rate, draw rate) |
 | `geoStats` | Registered user counts by country (from live USERS table) |
 | `activeGeoStats` | Players who completed a game in the past 30 days, by profile country |
-| `rivalries` | Top two-player pair frequencies; anonymized unless both players opted in (`players` array when named) |
+| `rivalries` | Two-player pair frequencies (≥50 shared games); anonymized unless both players opted in (`players` array when named) |
 | `seasonality` | Move-time activity by UTC day/hour (from `mvtimes.json`; last 365 days) |
 | `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p2–p98) hours per move site-wide |
 
