@@ -7,7 +7,7 @@ import { Handler } from "aws-lambda";
 import { type IRating, type IGlickoRating, APGameRecord, ELOBasic, Glicko2, type ITrueskillRating, Trueskill } from "@abstractplay/recranks";
 import { gameinfo, replacer } from "../gameslibRequire.js";
 import type { UserRating, StatSummary, RivalriesFull } from "types/index.js";
-import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats, MetaPieStats, MetaPlayerCountMix, PlayContextStats } from "types/index.js";
+import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats, MetaPieStats, MetaPlayerCountMix, PlayContextStats, SeasonalityStats } from "types/index.js";
 import {
     GLICKO_PERIOD_MS,
     computeGlickoNumPeriods,
@@ -16,7 +16,6 @@ import {
     computeRivalryPairs,
     anonymizeRivalries,
     enrichRivalryPairsWithDisplayNames,
-    computeSeasonality,
     computeTimeoutHistogramRates,
     RIVALRY_MIN_GAMES,
     RIVALRY_PUBLIC_TOP_N,
@@ -35,6 +34,7 @@ import {
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
 const REC_BUCKET = "records.abstractplay.com";
+const MVTIMES_KEY = "mvtimes.json";
 const OPS_BUCKET = "private-ops-153672715141-us-east-1-an";
 const RIVALRIES_OPS_KEY = "stats/rivalries.json";
 const clnt = new DynamoDBClient({ region: REGION });
@@ -65,6 +65,37 @@ const pushToMap = (map: Map<string, any[]>, key: string, value: any) => {
         map.set(key, [...lst, value]);
     } else {
         map.set(key, [value])
+    }
+}
+
+function emptyMoveSeasonality(): SeasonalityStats {
+    return {
+        movesByDow: Array.from({ length: 7 }, () => 0),
+        playersByDow: Array.from({ length: 7 }, () => 0),
+        movesByHour: Array.from({ length: 24 }, () => 0),
+        windowDays: 365,
+    };
+}
+
+async function loadMoveSeasonality(): Promise<SeasonalityStats> {
+    try {
+        const response = await s3.send(new GetObjectCommand({
+            Bucket: REC_BUCKET,
+            Key: MVTIMES_KEY,
+        }));
+        const str = await response.Body?.transformToString();
+        if (str === undefined) {
+            return emptyMoveSeasonality();
+        }
+        const parsed = JSON.parse(str) as { seasonality?: SeasonalityStats };
+        if (parsed.seasonality === undefined) {
+            console.log("mvtimes.json has no seasonality field; using empty bins");
+            return emptyMoveSeasonality();
+        }
+        return parsed.seasonality;
+    } catch (err) {
+        console.log(`Could not load move seasonality from ${MVTIMES_KEY}: ${err}`);
+        return emptyMoveSeasonality();
     }
 }
 
@@ -749,12 +780,12 @@ export const handler: Handler = async (event: any, context?: any) => {
         }
         activeGeoStats.sort((a, b) => b.n - a.n);
 
-        console.log("Calculating rivalries and seasonality");
+        console.log("Calculating rivalries");
         const identifiedRivalryPairs = computeRivalryPairs(recs);
         const publicRivalries = anonymizeRivalries(
             identifiedRivalryPairs.slice(0, RIVALRY_PUBLIC_TOP_N),
         );
-        const seasonality = computeSeasonality(recs);
+        const seasonality = await loadMoveSeasonality();
         const rivalriesIdentified: RivalriesFull = {
             generated: new Date().toISOString(),
             minGames: RIVALRY_MIN_GAMES,

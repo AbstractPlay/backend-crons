@@ -50,7 +50,7 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | gameslib |
 | **Input** | Latest ION dump (GAME + MOVE records) |
-| **Output** | `mvtimes.json` — activity histograms by meta game (1w/1m/6m/1y windows) |
+| **Output** | `mvtimes.json` — activity histograms by meta game plus move-time seasonality |
 
 ### `records-cooccur`
 
@@ -106,7 +106,7 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Schedule** | Daily 06:00 UTC |
 | **Timeout / memory** | 120 s / 1024 MB |
 | **Layer** | gameslib |
-| **Input** | `ALL.json`; live `USERS` query for geo stats |
+| **Input** | `ALL.json`; `mvtimes.json` (seasonality); live `USERS` query for geo stats |
 | **Output** | `_summary.json` on records bucket; `stats/rivalries.json` on private ops bucket |
 | **Notes** | See [Summarize](/crons/summarize/) |
 

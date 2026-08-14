@@ -7,6 +7,8 @@ import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec, type MoveRec } from "types/index.js";
 import { decompressGameState } from "../utils/gameState.js";
+import { computeMoveSeasonality, MOVE_SEASONALITY_WINDOW_DAYS } from "../utils/moveSeasonality.js";
+import type { SeasonalityStats } from "types/stats/SeasonalityStats.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
@@ -31,6 +33,7 @@ type SummaryRec = {
     playersSum1m: Entry[];
     playersSum6m: Entry[];
     playersSum1y: Entry[];
+    seasonality: SeasonalityStats;
 };
 
 export const handler: Handler = async (event: any, context?: any) => {
@@ -283,6 +286,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         playersSum1m,
         playersSum6m,
         playersSum1y,
+        seasonality: computeMoveSeasonality(mvTimes1y, MOVE_SEASONALITY_WINDOW_DAYS),
     };
 
     // write files to S3

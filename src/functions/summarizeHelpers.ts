@@ -349,37 +349,6 @@ export function enrichRivalryPairsWithDisplayNames(
     }));
 }
 
-export type SeasonalityResult = {
-    gamesByDow: number[];
-    playersByDow: number[];
-    gamesByHour: number[];
-};
-
-export function computeSeasonality(recs: APGameRecord[]): SeasonalityResult {
-    const gamesByDow = Array.from({ length: 7 }, () => 0);
-    const gamesByHour = Array.from({ length: 24 }, () => 0);
-    const playersByDowSets: Set<string>[] = Array.from({ length: 7 }, () => new Set<string>());
-
-    for (const rec of recs) {
-        const end = new Date(rec.header["date-end"]);
-        const dow = end.getUTCDay();
-        const hour = end.getUTCHours();
-        gamesByDow[dow]++;
-        gamesByHour[hour]++;
-        for (const p of rec.header.players) {
-            if (p.userid !== undefined) {
-                playersByDowSets[dow].add(p.userid);
-            }
-        }
-    }
-
-    return {
-        gamesByDow,
-        playersByDow: playersByDowSets.map((s) => s.size),
-        gamesByHour,
-    };
-}
-
 export function computeTimeoutHistogramRates(histTimeouts: number[], histAll: number[]): number[] {
     const len = Math.max(histTimeouts.length, histAll.length);
     const rates: number[] = [];
