@@ -7,6 +7,7 @@ import {
     computeReturningPlayersPerWeek,
     computeRivalryPairs,
     anonymizeRivalries,
+    enrichRivalryPairsWithDisplayNames,
     computeSeasonality,
     computeTimeoutHistogramRates,
     findTimeoutPlayerSeat,
@@ -115,7 +116,7 @@ describe("computeHoursPerStats", () => {
         expect(stats.median).toBe(3);
     });
 
-    it("winsorizes outliers at p5 and p95", () => {
+    it("winsorizes outliers at p2 and p98", () => {
         const hourMs = 60 * 60 * 1000;
         const games = [];
         for (let i = 1; i <= 20; i++) {
@@ -125,11 +126,12 @@ describe("computeHoursPerStats", () => {
         const stats = computeHoursPerStats(games, 0);
         expect(stats.n).toBe(21);
         expect(stats.winsorizedCount).toBeGreaterThan(0);
-        expect(stats.mean).toBeLessThan(100);
-        expect(stats.median).toBeLessThan(100);
+        const uncappedMean = (Array.from({ length: 20 }, (_, i) => i + 1).reduce((a, b) => a + b, 0) + 10_000) / 21;
+        expect(stats.mean).toBeLessThan(uncappedMean);
+        expect(stats.median).toBeLessThan(10_000);
     });
 
-    it("reports zero winsorized records when all rates fall within p5-p95", () => {
+    it("reports zero winsorized records when all rates fall within p2-p98", () => {
         const hourMs = 60 * 60 * 1000;
         const stats = computeHoursPerStats([
             { dateStartMs: 0, dateEndMs: hourMs, moveSlots: 1 },
@@ -217,6 +219,19 @@ describe("anonymizeRivalries", () => {
         ])).toEqual([
             { rank: 1, label: "Pair 1", n: 12 },
             { rank: 2, label: "Pair 2", n: 8 },
+        ]);
+    });
+});
+
+describe("enrichRivalryPairsWithDisplayNames", () => {
+    it("adds display names and falls back to user id when unknown", () => {
+        const names = new Map([["a", "Alice"], ["b", "Bob"]]);
+        expect(enrichRivalryPairsWithDisplayNames([
+            { userA: "a", userB: "b", n: 7 },
+            { userA: "c", userB: "d", n: 3 },
+        ], names)).toEqual([
+            { userA: "a", nameA: "Alice", userB: "b", nameB: "Bob", n: 7 },
+            { userA: "c", nameA: "c", userB: "d", nameB: "d", n: 3 },
         ]);
     });
 });

@@ -51,7 +51,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `activeGeoStats` | Players with completed games, by profile country |
 | `rivalries` | Top anonymized two-player pair frequencies (no user IDs) |
 | `seasonality` | Games and players by UTC day-of-week and hour-of-day |
-| `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p5–p95) hours per move site-wide |
+| `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p2–p98) hours per move site-wide |
 
 Full field documentation: [Summarize](/crons/summarize/).
 
@@ -73,7 +73,7 @@ Not served via CloudFront. IAM-restricted.
 | `recommendations/analytics/daily/YYYY-MM-DD.json` | `records-rec-analytics` | UTC daily impression rollups |
 | `recommendations/analytics/summary.json` | `records-rec-analytics` | Latest window + rolling 7d/30d |
 | `recommendations/analytics/report/YYYY-MM-DD.md` | `records-rec-analytics` | Human/agent-readable report |
-| `stats/rivalries.json` | `summarize` | Full two-player rivalry pairs with user IDs (min 5 shared games) |
+| `stats/rivalries.json` | `summarize` | All qualifying rivalry pairs with user IDs and display names (not anonymized; min 5 shared games) |
 
 See [Recommendation analytics](/crons/recommendations-analytics/) and [Summarize](/crons/summarize/).
 

@@ -4,10 +4,19 @@ export type RivalryPair = {
     n: number;
 };
 
+/** Private ops rivalry entry — includes user IDs and display names. */
+export type IdentifiedRivalryPair = {
+    userA: string;
+    nameA: string;
+    userB: string;
+    nameB: string;
+    n: number;
+};
+
 export type RivalriesFull = {
     generated: string;
     minGames: number;
-    pairs: RivalryPair[];
+    pairs: IdentifiedRivalryPair[];
 };
 
 export type AnonymizedRivalry = {
