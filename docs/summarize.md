@@ -167,7 +167,23 @@ Two-player completed games only. Pairs are canonicalized (`userA < userB`). Only
 
 **Private ops** (`stats/rivalries.json`): every qualifying pair with `{ userA, nameA, userB, nameB, n }` — user IDs and display names (not anonymized).
 
-**Public** (`_summary.json` → `rivalries`): top **25** entries only, anonymized as `{ rank, label: "Pair N", n }` until players opt in.
+**Public** (`_summary.json` → `rivalries`): top **25** entries only. Pairs are anonymized as `{ rank, label: "Pair N", n }` unless **both** players have `publicRivalries: true` on their `USERS` record. Opted-in pairs include `players: [{ id, name }, { id, name }]` and `label` as `"NameA vs NameB"`.
+
+```json
+{ "rank": 1, "label": "Pair 1", "n": 42 }
+```
+
+```json
+{
+  "rank": 1,
+  "label": "Alice vs Bob",
+  "n": 42,
+  "players": [
+    { "id": "…", "name": "Alice" },
+    { "id": "…", "name": "Bob" }
+  ]
+}
+```
 
 ```json
 {
@@ -203,7 +219,7 @@ See [`moveSeasonality.ts`](../src/utils/moveSeasonality.ts).
 | `computeReturningPlayersPerWeek` | Returning-player histogram |
 | `recordWasPied` / `gameSupportsPie` | Pie rule stats |
 | `gameSupportsMultiPlayerCount` | Multi-player-capable metas |
-| `computeRivalryPairs` / `anonymizeRivalries` / `enrichRivalryPairsWithDisplayNames` | Rivalry aggregation |
+| `computeRivalryPairs` / `anonymizeRivalries` / `publishRivalries` / `enrichRivalryPairsWithDisplayNames` | Rivalry aggregation |
 | `partitionByGlickoPeriod` / `computeGlickoNumPeriods` | Glicko rating periods |
 | `GLICKO_PERIOD_MS` | 60-day period constant |
 | `RIVALRY_MIN_GAMES`, `RIVALRY_PUBLIC_TOP_N` | Rivalry thresholds |

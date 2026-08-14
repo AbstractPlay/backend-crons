@@ -7,6 +7,7 @@ import {
     computeReturningPlayersPerWeek,
     computeRivalryPairs,
     anonymizeRivalries,
+    publishRivalries,
     enrichRivalryPairsWithDisplayNames,
     computeTimeoutHistogramRates,
     findTimeoutPlayerSeat,
@@ -219,6 +220,78 @@ describe("anonymizeRivalries", () => {
             { rank: 1, label: "Pair 1", n: 12 },
             { rank: 2, label: "Pair 2", n: 8 },
         ]);
+    });
+});
+
+describe("publishRivalries", () => {
+    const pairs = [
+        { userA: "a", userB: "b", n: 12 },
+        { userA: "c", userB: "d", n: 8 },
+        { userA: "e", userB: "f", n: 5 },
+    ];
+    const names = new Map([
+        ["a", "Alice"],
+        ["b", "Bob"],
+        ["c", "Carol"],
+        ["d", "Dave"],
+        ["e", "Eve"],
+        ["f", "Frank"],
+    ]);
+
+    it("keeps pairs anonymized when neither player opted in", () => {
+        expect(publishRivalries(pairs, new Set(), names)).toEqual([
+            { rank: 1, label: "Pair 1", n: 12 },
+            { rank: 2, label: "Pair 2", n: 8 },
+            { rank: 3, label: "Pair 3", n: 5 },
+        ]);
+    });
+
+    it("keeps pairs anonymized when only one player opted in", () => {
+        expect(publishRivalries(pairs, new Set(["a"]), names)).toEqual([
+            { rank: 1, label: "Pair 1", n: 12 },
+            { rank: 2, label: "Pair 2", n: 8 },
+            { rank: 3, label: "Pair 3", n: 5 },
+        ]);
+    });
+
+    it("deanonymizes pairs when both players opted in", () => {
+        expect(
+            publishRivalries(pairs, new Set(["a", "b", "c", "d"]), names),
+        ).toEqual([
+            {
+                rank: 1,
+                label: "Alice vs Bob",
+                n: 12,
+                players: [
+                    { id: "a", name: "Alice" },
+                    { id: "b", name: "Bob" },
+                ],
+            },
+            {
+                rank: 2,
+                label: "Carol vs Dave",
+                n: 8,
+                players: [
+                    { id: "c", name: "Carol" },
+                    { id: "d", name: "Dave" },
+                ],
+            },
+            { rank: 3, label: "Pair 3", n: 5 },
+        ]);
+    });
+
+    it("preserves rank ordering", () => {
+        const result = publishRivalries(pairs, new Set(["e", "f"]), names);
+        expect(result.map((r) => r.rank)).toEqual([1, 2, 3]);
+        expect(result[2]).toEqual({
+            rank: 3,
+            label: "Eve vs Frank",
+            n: 5,
+            players: [
+                { id: "e", name: "Eve" },
+                { id: "f", name: "Frank" },
+            ],
+        });
     });
 });
 

@@ -15,7 +15,7 @@ import {
     computeHoursPerStats,
     computeReturningPlayersPerWeek,
     computeRivalryPairs,
-    anonymizeRivalries,
+    publishRivalries,
     enrichRivalryPairsWithDisplayNames,
     computeTimeoutHistogramRates,
     RIVALRY_MIN_GAMES,
@@ -736,7 +736,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                 KeyConditionExpression: "#pk = :pk",
                 ExpressionAttributeValues: { ":pk": "USERS" },
                 ExpressionAttributeNames: { "#pk": "pk", "#name": "name" },
-                ProjectionExpression: "sk, country, #name",
+                ProjectionExpression: "sk, country, #name, publicRivalries",
                 ReturnConsumedCapacity: "INDEXES"
               }));
 
@@ -751,10 +751,14 @@ export const handler: Handler = async (event: any, context?: any) => {
         const countryCounts = new Map<string, number>();
         const userCountry = new Map<string, string>();
         const userDisplayNames = new Map<string, string>();
+        const publicRivalryUsers = new Set<string>();
         for (const user of users) {
             if (typeof user.sk === "string") {
                 if (typeof user.name === "string" && user.name.length > 0) {
                     userDisplayNames.set(user.sk, user.name);
+                }
+                if (user.publicRivalries === true) {
+                    publicRivalryUsers.add(user.sk);
                 }
             }
             const alpha2 = isoToCountryCode(user.country, "alpha2");
@@ -804,8 +808,10 @@ export const handler: Handler = async (event: any, context?: any) => {
 
         console.log("Calculating rivalries");
         const identifiedRivalryPairs = computeRivalryPairs(recs);
-        const publicRivalries = anonymizeRivalries(
+        const publicRivalries = publishRivalries(
             identifiedRivalryPairs.slice(0, RIVALRY_PUBLIC_TOP_N),
+            publicRivalryUsers,
+            userDisplayNames,
         );
         const mvtimes = await loadMvtimes();
         const seasonality = mvtimes.seasonality;
