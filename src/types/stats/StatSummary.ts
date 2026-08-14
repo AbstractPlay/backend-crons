@@ -1,10 +1,29 @@
-import { UserRating, UserGameRating, GameNumber, UserNumber, GameNumList, UserNumList, TwoPlayerStats, GeoStats } from "./index.js";
+import {
+    UserRating,
+    UserGameRating,
+    GameNumber,
+    UserNumber,
+    GameNumList,
+    UserNumList,
+    TwoPlayerStats,
+    GeoStats,
+    HoursPerStats,
+    PlayContextStats,
+    MetaPieStats,
+    MetaPlayerCountMix,
+    AnonymizedRivalry,
+    SeasonalityStats,
+} from "./index.js";
 export type StatSummary = {
     numGames: number;
     numPlayers: number;
     oldestRec?: string;
     newestRec?: string;
     timeoutRate: number;
+    abandonedRate: number;
+    playContext: PlayContextStats;
+    pieRates: MetaPieStats[];
+    playerCountMix: MetaPlayerCountMix[];
     ratings: {
         highest: UserGameRating[];
         avg: UserRating[];
@@ -30,13 +49,18 @@ export type StatSummary = {
         players: UserNumList[];
         playerTimeouts: UserNumList[];
         firstTimers: number[];
+        returningPlayers: number[];
         timeouts: number[];
+        abandoned: number[];
     };
     recent: GameNumber[];
-    hoursPer: number[];
+    hoursPer: HoursPerStats;
     metaStats: {
         [k: string]: TwoPlayerStats;
     }
     hMeta: UserNumber[];
     geoStats: GeoStats[];
+    activeGeoStats: GeoStats[];
+    rivalries: AnonymizedRivalry[];
+    seasonality: SeasonalityStats;
 };

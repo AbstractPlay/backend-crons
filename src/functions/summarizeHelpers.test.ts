@@ -3,13 +3,23 @@ import type { APGameRecord } from "@abstractplay/recranks";
 import {
     GLICKO_PERIOD_MS,
     computeGlickoNumPeriods,
+    computeHoursPerStats,
+    computeReturningPlayersPerWeek,
+    computeRivalryPairs,
+    anonymizeRivalries,
+    computeSeasonality,
     computeTimeoutHistogramRates,
     findTimeoutPlayerSeat,
+    gameSupportsMultiPlayerCount,
+    gameSupportsPie,
     getGlickoPeriodIndex,
+    HOURS_PER_MOVE_MAX,
     maxOf,
+    medianOf,
     partitionByGlickoPeriod,
     recordHasAbandoned,
     recordHasTimeout,
+    recordWasPied,
 } from "./summarizeHelpers.js";
 
 type Moves = APGameRecord["moves"];
@@ -69,6 +79,144 @@ describe("partitionByGlickoPeriod", () => {
         expect(assigned.map((r) => r.dateEndMs).sort((a, b) => a - b)).toEqual(
             records.map((r) => r.dateEndMs).sort((a, b) => a - b),
         );
+    });
+});
+
+describe("medianOf", () => {
+    it("returns undefined for an empty array", () => {
+        expect(medianOf([])).toBeUndefined();
+    });
+
+    it("returns the middle value", () => {
+        expect(medianOf([3, 1, 2])).toBe(2);
+        expect(medianOf([4, 1, 3, 2])).toBe(2.5);
+    });
+});
+
+describe("computeHoursPerStats", () => {
+    const earliestMs = 0;
+    const hourMs = 60 * 60 * 1000;
+
+    it("computes move-weighted mean and per-game median", () => {
+        const stats = computeHoursPerStats([
+            { dateStartMs: 0, dateEndMs: 4 * hourMs, moveSlots: 2 },
+            { dateStartMs: 0, dateEndMs: 8 * hourMs, moveSlots: 2 },
+        ], earliestMs);
+        expect(stats.n).toBe(2);
+        expect(stats.mean).toBe(3);
+        expect(stats.median).toBe(3);
+    });
+
+    it("excludes games above the hours cap", () => {
+        const stats = computeHoursPerStats([
+            { dateStartMs: 0, dateEndMs: hourMs, moveSlots: 1 },
+            { dateStartMs: 0, dateEndMs: 500 * hourMs, moveSlots: 1 },
+        ], earliestMs, 200);
+        expect(stats.n).toBe(1);
+        expect(stats.mean).toBe(1);
+    });
+
+    it("builds weekly medians aligned to completion week buckets", () => {
+        const weekMs = 7 * 24 * hourMs;
+        const stats = computeHoursPerStats([
+            { dateStartMs: 0, dateEndMs: 2 * hourMs, moveSlots: 1 },
+            { dateStartMs: weekMs, dateEndMs: weekMs + 4 * hourMs, moveSlots: 1 },
+        ], earliestMs);
+        expect(stats.byWeek).toEqual([2, 4]);
+    });
+});
+
+describe("computeReturningPlayersPerWeek", () => {
+    it("counts users who played again after their first week", () => {
+        const earliest = 0;
+        const weekMs = 7 * 24 * 60 * 60 * 1000;
+        const returning = computeReturningPlayersPerWeek([
+            { user: "a", time: 0 },
+            { user: "a", time: weekMs },
+            { user: "b", time: weekMs },
+        ], earliest, 1);
+        expect(returning).toEqual([0, 1]);
+    });
+});
+
+describe("recordWasPied", () => {
+    it("detects pied and pie-invoked headers", () => {
+        expect(recordWasPied({ pied: true } as APGameRecord["header"])).toBe(true);
+        expect(recordWasPied({ "pie-invoked": true } as APGameRecord["header"])).toBe(true);
+        expect(recordWasPied({} as APGameRecord["header"])).toBe(false);
+    });
+});
+
+describe("gameSupportsPie", () => {
+    it("matches pie flags", () => {
+        expect(gameSupportsPie(["pie"])).toBe(true);
+        expect(gameSupportsPie(["pie-even"])).toBe(true);
+        expect(gameSupportsPie(["simultaneous"])).toBe(false);
+    });
+});
+
+describe("gameSupportsMultiPlayerCount", () => {
+    it("is true when any supported count exceeds two", () => {
+        expect(gameSupportsMultiPlayerCount([2])).toBe(false);
+        expect(gameSupportsMultiPlayerCount([2, 3, 4])).toBe(true);
+    });
+});
+
+describe("computeRivalryPairs", () => {
+    it("counts two-player pairs and filters by minimum games", () => {
+        const recs = [
+            { header: { players: [{ userid: "b" }, { userid: "a" }] } },
+            { header: { players: [{ userid: "a" }, { userid: "b" }] } },
+            { header: { players: [{ userid: "a" }, { userid: "c" }] } },
+            { header: { players: [{ userid: "x" }, { userid: "y" }] } },
+        ] as APGameRecord[];
+        expect(computeRivalryPairs(recs, 2, 10)).toEqual([
+            { userA: "a", userB: "b", n: 2 },
+        ]);
+    });
+
+    it("ignores games without two user ids", () => {
+        const recs = [
+            { header: { players: [{ userid: "a" }, { userid: "b" }, { userid: "c" }] } },
+            { header: { players: [{ userid: "a" }, {}] } },
+        ] as APGameRecord[];
+        expect(computeRivalryPairs(recs, 1, 10)).toEqual([]);
+    });
+});
+
+describe("anonymizeRivalries", () => {
+    it("labels pairs without exposing user ids", () => {
+        expect(anonymizeRivalries([
+            { userA: "secret-a", userB: "secret-b", n: 12 },
+            { userA: "secret-c", userB: "secret-d", n: 8 },
+        ])).toEqual([
+            { rank: 1, label: "Pair 1", n: 12 },
+            { rank: 2, label: "Pair 2", n: 8 },
+        ]);
+    });
+});
+
+describe("computeSeasonality", () => {
+    it("bins completed games and unique players by UTC day and hour", () => {
+        const recs = [
+            {
+                header: {
+                    "date-end": "2026-01-05T15:30:00.000Z",
+                    players: [{ userid: "a" }, { userid: "b" }],
+                },
+            },
+            {
+                header: {
+                    "date-end": "2026-01-05T16:00:00.000Z",
+                    players: [{ userid: "a" }, { userid: "c" }],
+                },
+            },
+        ] as APGameRecord[];
+        const result = computeSeasonality(recs);
+        expect(result.gamesByDow[1]).toBe(2);
+        expect(result.playersByDow[1]).toBe(3);
+        expect(result.gamesByHour[15]).toBe(1);
+        expect(result.gamesByHour[16]).toBe(1);
     });
 });
 

@@ -107,7 +107,7 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Timeout / memory** | 120 s / 1024 MB |
 | **Layer** | gameslib |
 | **Input** | `ALL.json`; live `USERS` query for geo stats |
-| **Output** | `_summary.json` |
+| **Output** | `_summary.json` on records bucket; `stats/rivalries.json` on private ops bucket |
 | **Notes** | See [Summarize](/crons/summarize/) |
 
 ## Live functions (DynamoDB)
