@@ -7,6 +7,7 @@
   { "slug": "functions", "title": "Functions reference" },
   { "slug": "s3-outputs", "title": "S3 outputs" },
   { "slug": "recommendations-cooccur", "title": "Recommendation co-occurrence" },
+  { "slug": "recommendations-analytics", "title": "Recommendation analytics" },
   { "slug": "summarize" },
   { "slug": "live-crons", "title": "Live crons" }
 ]

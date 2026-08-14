@@ -11,7 +11,7 @@ EventBridge cron expressions use `*` in the day-of-month field (daily). For exam
 | Time | Function(s) | Depends on |
 |------|-------------|------------|
 | Daily 00:00 | `dumpdb` | — |
-| Daily 03:00 | `records`, `records-ttm`, `records-move-times`, `records-cooccur`, `tournament-data` | Latest completed dump in `abstractplay-db-dump` |
+| Daily 03:00 | `records`, `records-ttm`, `records-move-times`, `records-cooccur`, `records-rec-analytics`, `tournament-data` | Latest completed dump in `abstractplay-db-dump` (except `records-rec-analytics` — live DDB scan) |
 | Daily 04:00 | `records-manifest` | Records batch outputs |
 | Daily 06:00 | `summarize` | `ALL.json` in records bucket |
 | Daily 07:00 | `records-manifest` | Post-summarize refresh |
@@ -23,6 +23,8 @@ Live crons (`starttournaments`, `standingchallenges`) run on separate daily sche
 ```mermaid
 flowchart TD
     dumpdb["dumpdb daily 00:00 UTC"] --> batch["records + records-ttm + records-move-times + records-cooccur + tournament-data daily 03:00"]
+    recanalytics["records-rec-analytics daily 03:00"] --> ddb[(DynamoDB live)]
+    recanalytics --> s3ops[(private ops S3)]
     batch --> manifest1["records-manifest daily 04:00"]
     batch --> summarize["summarize daily 06:00"]
     summarize --> manifest2["records-manifest daily 07:00"]
@@ -68,6 +70,10 @@ Builds move-activity summaries over 7, 30, 180, and 365-day windows. Writes `mvt
 
 Scans completed GAME records and `USER` records (for `stars[]`) from the dump. Builds a PMI-normalized co-occurrence matrix for the front-end recommendation engine. Writes `recommendations/cooccur.json`. See [Recommendation co-occurrence](/crons/recommendations-cooccur/).
 
+### `records-rec-analytics`
+
+Scans live DynamoDB `RECOMMENDS#` impression events (not the ION dump). Computes anonymized funnel/CTR rollups and writes to the private ops bucket. See [Recommendation analytics](/crons/recommendations-analytics/).
+
 ### `tournament-data`
 
 Extracts tournament records from the dump and writes `tournament-summary.json` plus `player/tournaments/{playerId}.json` per player.
@@ -91,4 +97,5 @@ Reads `ALL.json`, computes site-wide analytics, writes `_summary.json`. See [Sum
 - [Functions reference](/crons/functions/)
 - [S3 outputs](/crons/s3-outputs/)
 - [Recommendation co-occurrence](/crons/recommendations-cooccur/)
+- [Recommendation analytics](/crons/recommendations-analytics/)
 - [Summarize](/crons/summarize/)

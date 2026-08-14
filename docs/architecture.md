@@ -17,6 +17,7 @@ Defined in [`serverless.yml`](../serverless.yml). Schedules are **daily** unless
 | `records-ttm` | Daily 03:00 | Per-player time-to-move arrays |
 | `records-move-times` | Daily 03:00 | Move activity histograms |
 | `records-cooccur` | Daily 03:00 | PMI co-occurrence for recommendations |
+| `records-rec-analytics` | Daily 03:00 | Recommendation impression funnel analytics (ops S3) |
 | `tournament-data` | Daily 03:00 | Tournament summaries from dump |
 | `records-manifest` | Daily 04:00 and 07:00 | S3 listing + CloudFront invalidation |
 | `summarize` | Daily 06:00 | Site analytics from `ALL.json` |
@@ -48,6 +49,8 @@ flowchart LR
     s3rec --> summarize
     summarize --> s3rec
     ddb --> live[Live crons]
+    ddb --> recanalytics[records-rec-analytics]
+    recanalytics --> s3ops[(private ops S3)]
     live --> ddb
     s3rec --> cf[CloudFront invalidation]
 ```
@@ -57,7 +60,7 @@ flowchart LR
 The service role grants:
 
 - **DynamoDB** — query/scan/get/put/update/delete, batch write, point-in-time export
-- **S3** — list/get on `abstractplay-db-dump`; put on `records.abstractplay.com` and dump bucket
+- **S3** — list/get on `abstractplay-db-dump`; put on `records.abstractplay.com` and dump bucket; get/put on private ops bucket (`recommendations/analytics/*`)
 - **SES** — send email (tournament notifications)
 - **CloudFront** — create invalidation on the records distribution
 
@@ -65,7 +68,7 @@ The service role grants:
 
 | Variable | Source | Purpose |
 |----------|--------|---------|
-| `ABSTRACT_PLAY_TABLE` | `serverless.yml` | `abstract-play-{stage}` — used by `summarize` (geo stats) and live crons |
+| `ABSTRACT_PLAY_TABLE` | `serverless.yml` | `abstract-play-{stage}` — used by `summarize` (geo stats), live crons, and `records-rec-analytics` |
 
 ## Dependencies
 

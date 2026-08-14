@@ -85,3 +85,4 @@ Hybrid warm-tier weights (reference): 45% content, 35% co-occurrence, 15% popula
 - [Records pipeline](/crons/pipeline/)
 - [S3 outputs](/crons/s3-outputs/)
 - [Backend recommendations subsystem](/backend/subsystems/recommendations/) — impression tracking (`RECOMMENDS#`)
+- [Recommendation analytics](/crons/recommendations-analytics/) — nightly funnel rollups (ops S3)

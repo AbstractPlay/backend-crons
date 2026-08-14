@@ -10,6 +10,7 @@ custom:
     prod: "records.abstractplay.com"
     dev: "records.abstractplay.com"
   dumpbucket: "abstractplay-db-dump"
+  opsbucket: "private-ops-153672715141-us-east-1-an"
   esbuild:
     tsconfig: "./tsconfig.json"
     bundle: true
@@ -78,11 +79,17 @@ provider:
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump"
             - "arn:aws:s3:::records.abstractplay.com"
+            - "arn:aws:s3:::${self:custom.opsbucket}"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump/*"
+        - Effect: "Allow"
+          Action:
+            - "s3:GetObject"
+          Resource:
+            - "arn:aws:s3:::${self:custom.opsbucket}/*"
         - Effect: "Allow"
           Action:
             - "s3:PutObject"
@@ -91,6 +98,7 @@ provider:
             - "arn:aws:s3:::records.abstractplay.com/*"
             - "arn:aws:s3:::thumbnails.abstractplay.com/*"
             - "arn:aws:s3:::abstractplay-db-dump/*"
+            - "arn:aws:s3:::${self:custom.opsbucket}/*"
 
 functions:
   dumpdb:
@@ -165,6 +173,20 @@ functions:
           description: Builds PMI game co-occurrence matrix for recommendations
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
           # 3am UTC daily (uses latest completed dump by LastModified)
+          schedule: cron(0 3 * * ? *)
+
+  records-rec-analytics:
+    handler: src/functions/records-rec-analytics.handler
+    description: Aggregates recommendation impression events to private ops S3
+    timeout: 900
+    memorySize: 1024
+    logRetentionInDays: 30
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-records-rec-analytics
+          description: Nightly recommendation impression funnel analytics
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 3am UTC daily (live DynamoDB scan of RECOMMENDS# events)
           schedule: cron(0 3 * * ? *)
 
   records-manifest:

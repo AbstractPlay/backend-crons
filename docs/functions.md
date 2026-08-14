@@ -64,6 +64,18 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Output** | `recommendations/cooccur.json` — PMI co-occurrence matrix |
 | **Notes** | See [Recommendation co-occurrence](/crons/recommendations-cooccur/) |
 
+### `records-rec-analytics`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/records-rec-analytics.ts` |
+| **Schedule** | Daily 03:00 UTC |
+| **Timeout / memory** | 900 s / 1024 MB |
+| **Layer** | No |
+| **Input** | Live DynamoDB scan (`RECOMMENDS#*`) |
+| **Output** | `recommendations/analytics/*` on private ops S3 |
+| **Notes** | See [Recommendation analytics](/crons/recommendations-analytics/) |
+
 ### `tournament-data`
 
 | | |
