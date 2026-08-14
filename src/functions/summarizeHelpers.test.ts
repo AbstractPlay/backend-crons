@@ -202,6 +202,18 @@ describe("computeRivalryPairs", () => {
         ]);
     });
 
+    it("filters by minimum games without a top-N cap", () => {
+        const recs = Array.from({ length: 60 }, () => ({
+            header: { players: [{ userid: "a" }, { userid: "b" }] },
+        })) as APGameRecord[];
+        expect(computeRivalryPairs(recs, 50)).toEqual([
+            { userA: "a", userB: "b", n: 60 },
+        ]);
+        expect(computeRivalryPairs(recs, 50, 10)).toEqual([
+            { userA: "a", userB: "b", n: 60 },
+        ]);
+    });
+
     it("ignores games without two user ids", () => {
         const recs = [
             { header: { players: [{ userid: "a" }, { userid: "b" }, { userid: "c" }] } },

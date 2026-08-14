@@ -40,7 +40,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `hMeta` | Per-meta h-index (breadth of participation) |
 | `geoStats` | Registered users by country (live `USERS` table) |
 | `activeGeoStats` | Players who completed a game in the past 30 days, by profile country |
-| `rivalries` | Top anonymized two-player pair frequencies (public) |
+| `rivalries` | Anonymized two-player pair frequencies (public pairs with ≥50 shared games) |
 | `seasonality` | Move-time activity by UTC day/hour (copied from `mvtimes.json`; last 365 days) |
 
 ## Processing stages
@@ -167,7 +167,7 @@ Two-player completed games only. Pairs are canonicalized (`userA < userB`). Only
 
 **Private ops** (`stats/rivalries.json`): every qualifying pair with `{ userA, nameA, userB, nameB, n }` — user IDs and display names (not anonymized).
 
-**Public** (`_summary.json` → `rivalries`): top **25** entries only. Pairs are anonymized as `{ rank, label: "Pair N", n }` unless **both** players have `publicRivalries: true` on their `USERS` record. Opted-in pairs include `players: [{ id, name }, { id, name }]` and `label` as `"NameA vs NameB"`.
+**Public** (`_summary.json` → `rivalries`): every pair with at least **50** shared games (`RIVALRY_PUBLIC_MIN_GAMES`), ordered by `n`. Pairs are anonymized as `{ rank, label: "Pair N", n }` unless **both** players have `publicRivalries: true` on their `USERS` record. Opted-in pairs include `players: [{ id, name }, { id, name }]` and `label` as `"NameA vs NameB"`.
 
 ```json
 { "rank": 1, "label": "Pair 1", "n": 42 }
@@ -222,7 +222,7 @@ See [`moveSeasonality.ts`](../src/utils/moveSeasonality.ts).
 | `computeRivalryPairs` / `anonymizeRivalries` / `publishRivalries` / `enrichRivalryPairsWithDisplayNames` | Rivalry aggregation |
 | `partitionByGlickoPeriod` / `computeGlickoNumPeriods` | Glicko rating periods |
 | `GLICKO_PERIOD_MS` | 60-day period constant |
-| `RIVALRY_MIN_GAMES`, `RIVALRY_PUBLIC_TOP_N` | Rivalry thresholds |
+| `RIVALRY_MIN_GAMES`, `RIVALRY_PUBLIC_MIN_GAMES` | Rivalry thresholds (ops vs public) |
 
 ## Custom JSON serialization
 
