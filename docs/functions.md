@@ -2,6 +2,8 @@
 
 All handlers live in [`src/functions/`](https://github.com/AbstractPlay/backend-crons/tree/develop/src/functions). Schedules and resource limits are in [`serverless.yml`](../serverless.yml).
 
+Batch dump consumers run **daily at 03:00 UTC** and read the latest completed ION export (see [Records pipeline](/crons/pipeline/)).
+
 ## Batch functions (S3 / dump)
 
 ### `dumpdb`
@@ -9,19 +11,19 @@ All handlers live in [`src/functions/`](https://github.com/AbstractPlay/backend-
 | | |
 |---|---|
 | **Handler** | `src/functions/dumpdb.ts` |
-| **Schedule** | Sun 00:00 UTC |
+| **Schedule** | Daily 00:00 UTC |
 | **Timeout / memory** | 1024 MB (default) |
 | **Layer** | No |
 | **Input** | EventBridge event (unused) |
 | **Output** | DynamoDB export to `abstractplay-db-dump` (ION) |
-| **Notes** | Exports `abstract-play-prod` table only |
+| **Notes** | Exports `abstract-play-prod` table only; prunes exports older than 7 days |
 
 ### `records`
 
 | | |
 |---|---|
 | **Handler** | `src/functions/records.ts` |
-| **Schedule** | Sun 03:00 UTC |
+| **Schedule** | Daily 03:00 UTC |
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | gameslib |
 | **Input** | Latest ION dump |
@@ -33,7 +35,7 @@ All handlers live in [`src/functions/`](https://github.com/AbstractPlay/backend-
 | | |
 |---|---|
 | **Handler** | `src/functions/records-ttm.ts` |
-| **Schedule** | Sun 03:00 UTC |
+| **Schedule** | Daily 03:00 UTC |
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | gameslib |
 | **Input** | Latest ION dump (GAME records) |
@@ -44,18 +46,30 @@ All handlers live in [`src/functions/`](https://github.com/AbstractPlay/backend-
 | | |
 |---|---|
 | **Handler** | `src/functions/records-move-times.ts` |
-| **Schedule** | Sun 03:00 UTC |
+| **Schedule** | Daily 03:00 UTC |
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | gameslib |
 | **Input** | Latest ION dump (GAME + MOVE records) |
 | **Output** | `mvtimes.json` — activity histograms by meta game (1w/1m/6m/1y windows) |
+
+### `records-cooccur`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/records-cooccur.ts` |
+| **Schedule** | Daily 03:00 UTC |
+| **Timeout / memory** | 900 s / 10240 MB |
+| **Layer** | No |
+| **Input** | Latest ION dump (completed GAME + USER `stars[]`) |
+| **Output** | `recommendations/cooccur.json` — PMI co-occurrence matrix |
+| **Notes** | See [Recommendation co-occurrence](/crons/recommendations-cooccur/) |
 
 ### `tournament-data`
 
 | | |
 |---|---|
 | **Handler** | `src/functions/tournament-data.ts` |
-| **Schedule** | Sun 03:00 UTC |
+| **Schedule** | Daily 03:00 UTC |
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | No |
 | **Input** | Latest ION dump (TOURNAMENT / COMPLETEDTOURNAMENT records) |
@@ -66,7 +80,7 @@ All handlers live in [`src/functions/`](https://github.com/AbstractPlay/backend-
 | | |
 |---|---|
 | **Handler** | `src/functions/records-manifest.ts` |
-| **Schedule** | Sun 04:00 and 07:00 UTC |
+| **Schedule** | Daily 04:00 and 07:00 UTC |
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | gameslib (attached but no gameslib import) |
 | **Input** | S3 list on records bucket |
@@ -114,4 +128,5 @@ All handlers live in [`src/functions/`](https://github.com/AbstractPlay/backend-
 
 - [Records pipeline](/crons/pipeline/)
 - [S3 outputs](/crons/s3-outputs/)
+- [Recommendation co-occurrence](/crons/recommendations-cooccur/)
 - [Architecture](/crons/architecture/)

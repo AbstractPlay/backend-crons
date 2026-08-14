@@ -1,18 +1,20 @@
 # Records pipeline
 
-The batch pipeline runs weekly (Sunday UTC) against the latest DynamoDB export, with a daily summarize step that refreshes site analytics.
+The batch pipeline runs **daily** (UTC) against the latest completed DynamoDB export in `abstractplay-db-dump`. Downstream jobs at 03:00 use whichever export finished most recently (by `manifest-summary.json` `LastModified`) — not necessarily the export started at that day's midnight `dumpdb` run.
 
 ## Schedule overview
 
 All times UTC. Prod only.
 
+EventBridge cron expressions use `*` in the day-of-month field (daily). For example, `cron(0 0 * * ? *)` is **every day** at 00:00, not Sunday-only. Sunday-only would be `cron(0 0 ? * SUN *)`.
+
 | Time | Function(s) | Depends on |
 |------|-------------|------------|
-| Sun 00:00 | `dumpdb` | — |
-| Sun 03:00 | `records`, `records-ttm`, `records-move-times`, `tournament-data` | Latest dump in `abstractplay-db-dump` |
-| Sun 04:00 | `records-manifest` | Records batch outputs |
+| Daily 00:00 | `dumpdb` | — |
+| Daily 03:00 | `records`, `records-ttm`, `records-move-times`, `records-cooccur`, `tournament-data` | Latest completed dump in `abstractplay-db-dump` |
+| Daily 04:00 | `records-manifest` | Records batch outputs |
 | Daily 06:00 | `summarize` | `ALL.json` in records bucket |
-| Sun 07:00 | `records-manifest` | Post-summarize refresh |
+| Daily 07:00 | `records-manifest` | Post-summarize refresh |
 
 Live crons (`starttournaments`, `standingchallenges`) run on separate daily schedules and query DynamoDB directly — see [Live crons](/crons/live-crons/).
 
@@ -20,10 +22,10 @@ Live crons (`starttournaments`, `standingchallenges`) run on separate daily sche
 
 ```mermaid
 flowchart TD
-    dumpdb["dumpdb Sun 00:00 UTC"] --> batch["records + records-ttm + records-move-times + tournament-data Sun 03:00"]
-    batch --> manifest1["records-manifest Sun 04:00"]
+    dumpdb["dumpdb daily 00:00 UTC"] --> batch["records + records-ttm + records-move-times + records-cooccur + tournament-data daily 03:00"]
+    batch --> manifest1["records-manifest daily 04:00"]
     batch --> summarize["summarize daily 06:00"]
-    summarize --> manifest2["records-manifest Sun 07:00"]
+    summarize --> manifest2["records-manifest daily 07:00"]
     live1["starttournaments 10:00 and 22:00 UTC"] --> ddb[(DynamoDB live)]
     live2["standingchallenges 00:00 and 12:00 UTC"] --> ddb
     dumpdb --> s3dump[(abstractplay-db-dump)]
@@ -37,11 +39,11 @@ flowchart TD
 
 Triggers a DynamoDB **point-in-time export** of the prod table (`abstract-play-prod`) to S3 bucket `abstractplay-db-dump` in ION format. AWS writes export files under `AWSDynamoDB/{uid}/data/*.ion.gz` plus a `manifest-summary.json`.
 
-The export is asynchronous — downstream jobs find the **latest** manifest by `LastModified` and process all data files for that export UID.
+The export is asynchronous — downstream jobs find the **latest** manifest by `LastModified` and process all data files for that export UID. Exports older than seven days are pruned by `dumpdb`.
 
-## Step 2: Parallel record generation (Sun 03:00)
+## Step 2: Parallel record generation (daily 03:00)
 
-Four Lambdas run in parallel after the dump completes:
+Five Lambdas run in parallel at 03:00 UTC. Each reads the latest completed dump independently (they do not wait for each other's outputs).
 
 ### `records`
 
@@ -62,13 +64,17 @@ Same dump ingestion, but computes per-player inter-move durations from the game 
 
 Builds move-activity summaries over 7, 30, 180, and 365-day windows. Writes `mvtimes.json`.
 
+### `records-cooccur`
+
+Scans completed GAME records and `USER` records (for `stars[]`) from the dump. Builds a PMI-normalized co-occurrence matrix for the front-end recommendation engine. Writes `recommendations/cooccur.json`. See [Recommendation co-occurrence](/crons/recommendations-cooccur/).
+
 ### `tournament-data`
 
 Extracts tournament records from the dump and writes `tournament-summary.json` plus `player/tournaments/{playerId}.json` per player.
 
 ## Step 3: Manifest and CDN (`records-manifest`)
 
-Lists all objects in the records bucket, writes `_manifest.json`, and invalidates the CloudFront distribution (`/*`). Runs twice on Sunday so `_summary.json` (from summarize) is included in the second pass.
+Lists all objects in the records bucket, writes `_manifest.json`, and invalidates the CloudFront distribution (`/*`). Runs twice daily (04:00 and 07:00) so `_summary.json` (from summarize) is included in the second pass.
 
 ## Step 4: Summarize (daily 06:00)
 
@@ -76,7 +82,7 @@ Reads `ALL.json`, computes site-wide analytics, writes `_summary.json`. See [Sum
 
 ## Failure and timing
 
-- `dumpdb` must finish before 03:00 Sunday jobs; export typically completes within a few hours
+- `dumpdb` starts at 00:00; the 03:00 batch uses the latest **completed** export, which may be from the previous day if today's export is still running
 - If `records` fails, `ALL.json` is stale and `summarize` reflects old data
 - `records-manifest` invalidates CloudFront regardless — clients see whatever is currently in S3
 
@@ -84,4 +90,5 @@ Reads `ALL.json`, computes site-wide analytics, writes `_summary.json`. See [Sum
 
 - [Functions reference](/crons/functions/)
 - [S3 outputs](/crons/s3-outputs/)
+- [Recommendation co-occurrence](/crons/recommendations-cooccur/)
 - [Summarize](/crons/summarize/)
