@@ -15,6 +15,7 @@ import {
     computeReturningPlayersPerWeek,
     computeRivalryPairs,
     anonymizeRivalries,
+    enrichRivalryPairsWithDisplayNames,
     computeSeasonality,
     computeTimeoutHistogramRates,
     RIVALRY_MIN_GAMES,
@@ -682,8 +683,9 @@ export const handler: Handler = async (event: any, context?: any) => {
             }
             hoursPerGames.push({ dateStartMs: started, dateEndMs: completed, moveSlots });
         }
-        const { winsorizedCount, ...hoursPer } = computeHoursPerStats(hoursPerGames, earliest);
-        console.log(`hoursPer winsorization: ${winsorizedCount} records outside p5-p95`);
+        const hoursPerResult = computeHoursPerStats(hoursPerGames, earliest);
+        const { winsorizedCount, ...hoursPer } = hoursPerResult;
+        console.log(`hoursPer winsorization: ${winsorizedCount} of ${hoursPer.n} records omitted by winsorization (p2-p98)`);
 
         // gathering geographical statistics
         let users: Record<string, any>[]|undefined;
@@ -693,8 +695,8 @@ export const handler: Handler = async (event: any, context?: any) => {
                 TableName: process.env.ABSTRACT_PLAY_TABLE,
                 KeyConditionExpression: "#pk = :pk",
                 ExpressionAttributeValues: { ":pk": "USERS" },
-                ExpressionAttributeNames: { "#pk": "pk"},
-                ProjectionExpression: "sk, country",
+                ExpressionAttributeNames: { "#pk": "pk", "#name": "name" },
+                ProjectionExpression: "sk, country, #name",
                 ReturnConsumedCapacity: "INDEXES"
               }));
 
@@ -708,7 +710,13 @@ export const handler: Handler = async (event: any, context?: any) => {
         }
         const countryCounts = new Map<string, number>();
         const userCountry = new Map<string, string>();
+        const userDisplayNames = new Map<string, string>();
         for (const user of users) {
+            if (typeof user.sk === "string") {
+                if (typeof user.name === "string" && user.name.length > 0) {
+                    userDisplayNames.set(user.sk, user.name);
+                }
+            }
             const alpha2 = isoToCountryCode(user.country, "alpha2");
             if (alpha2 !== undefined) {
                 if (countryCounts.has(alpha2)) {
@@ -742,13 +750,15 @@ export const handler: Handler = async (event: any, context?: any) => {
         activeGeoStats.sort((a, b) => b.n - a.n);
 
         console.log("Calculating rivalries and seasonality");
-        const rivalryPairsFull = computeRivalryPairs(recs);
-        const rivalries = anonymizeRivalries(rivalryPairsFull).slice(0, RIVALRY_PUBLIC_TOP_N);
+        const identifiedRivalryPairs = computeRivalryPairs(recs);
+        const publicRivalries = anonymizeRivalries(
+            identifiedRivalryPairs.slice(0, RIVALRY_PUBLIC_TOP_N),
+        );
         const seasonality = computeSeasonality(recs);
-        const rivalriesFull: RivalriesFull = {
+        const rivalriesIdentified: RivalriesFull = {
             generated: new Date().toISOString(),
             minGames: RIVALRY_MIN_GAMES,
-            pairs: rivalryPairsFull,
+            pairs: enrichRivalryPairsWithDisplayNames(identifiedRivalryPairs, userDisplayNames),
         };
 
         const summary: StatSummary = {
@@ -796,13 +806,13 @@ export const handler: Handler = async (event: any, context?: any) => {
             metaStats,
             geoStats,
             activeGeoStats,
-            rivalries,
+            rivalries: publicRivalries,
             seasonality,
         }
         const opsCmd = new PutObjectCommand({
             Bucket: OPS_BUCKET,
             Key: RIVALRIES_OPS_KEY,
-            Body: JSON.stringify(rivalriesFull),
+            Body: JSON.stringify(rivalriesIdentified),
         });
         const opsResponse = await s3.send(opsCmd);
         if (opsResponse["$metadata"].httpStatusCode !== 200) {

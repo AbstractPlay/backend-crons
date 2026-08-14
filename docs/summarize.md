@@ -138,7 +138,7 @@ Structured object (`HoursPerStats`):
 | `n` | Number of qualifying games |
 | `byWeek` | Median winsorized hours per move per week bucket |
 
-Excludes games ending by clock timeout or abandonment and games with fewer than two move rounds. Per-game rates are **winsorized at the 5th and 95th percentiles** so extreme outliers (very slow correspondence games, bad timestamps) do not dominate the summary.
+Excludes games ending by clock timeout or abandonment and games with fewer than two move rounds. Per-game rates are **winsorized at the 2nd and 98th percentiles** so extreme outliers (very slow correspondence games, bad timestamps) do not dominate the summary.
 
 ### Geographic stats
 
@@ -159,17 +159,17 @@ For meta games that support more than two players: histogram of completed games 
 
 ### Rivalries
 
-Two-player completed games only. Pairs are canonicalized (`userA < userB`). Only pairs with at least **5** shared games (`RIVALRY_MIN_GAMES`) are kept; up to **100** pairs go to the ops file, **25** anonymized entries to `_summary.json`.
+Two-player completed games only. Pairs are canonicalized (`userA < userB`). Only pairs with at least **5** shared games (`RIVALRY_MIN_GAMES`) are included.
 
-Public entries: `{ rank, label: "Pair N", n }` — no user IDs until players opt in.
+**Private ops** (`stats/rivalries.json`): every qualifying pair with `{ userA, nameA, userB, nameB, n }` — user IDs and display names (not anonymized).
 
-Full ops payload (`stats/rivalries.json`):
+**Public** (`_summary.json` → `rivalries`): top **25** entries only, anonymized as `{ rank, label: "Pair N", n }` until players opt in.
 
 ```json
 {
   "generated": "2026-08-14T12:00:00.000Z",
   "minGames": 5,
-  "pairs": [{ "userA": "…", "userB": "…", "n": 42 }]
+  "pairs": [{ "userA": "…", "nameA": "Alice", "userB": "…", "nameB": "Bob", "n": 42 }]
 }
 ```
 
@@ -196,11 +196,11 @@ Based on `header["date-end"]` in **UTC**:
 | `computeReturningPlayersPerWeek` | Returning-player histogram |
 | `recordWasPied` / `gameSupportsPie` | Pie rule stats |
 | `gameSupportsMultiPlayerCount` | Multi-player-capable metas |
-| `computeRivalryPairs` / `anonymizeRivalries` | Rivalry aggregation |
+| `computeRivalryPairs` / `anonymizeRivalries` / `enrichRivalryPairsWithDisplayNames` | Rivalry aggregation |
 | `computeSeasonality` | Day-of-week and hour-of-day bins |
 | `partitionByGlickoPeriod` / `computeGlickoNumPeriods` | Glicko rating periods |
 | `GLICKO_PERIOD_MS` | 60-day period constant |
-| `RIVALRY_MIN_GAMES`, `RIVALRY_TOP_N`, `RIVALRY_PUBLIC_TOP_N` | Rivalry thresholds |
+| `RIVALRY_MIN_GAMES`, `RIVALRY_PUBLIC_TOP_N` | Rivalry thresholds |
 
 ## Custom JSON serialization
 

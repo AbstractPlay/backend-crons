@@ -11,6 +11,6 @@ export type { HoursPerStats } from "./HoursPerStats.js";
 export type { PlayContextStats } from "./PlayContextStats.js";
 export type { MetaPieStats } from "./MetaPieStats.js";
 export type { MetaPlayerCountMix } from "./MetaPlayerCountMix.js";
-export type { RivalryPair, RivalriesFull, AnonymizedRivalry } from "./RivalryStats.js";
+export type { RivalryPair, IdentifiedRivalryPair, RivalriesFull, AnonymizedRivalry } from "./RivalryStats.js";
 export type { SeasonalityStats } from "./SeasonalityStats.js";
 

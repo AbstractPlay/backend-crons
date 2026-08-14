@@ -97,8 +97,8 @@ export function partitionByGlickoPeriod<T extends { dateEndMs: number }>(
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
-const HOURS_PER_WINSORIZE_LOW = 5;
-const HOURS_PER_WINSORIZE_HIGH = 95;
+const HOURS_PER_WINSORIZE_LOW = 2;
+const HOURS_PER_WINSORIZE_HIGH = 98;
 
 export function percentileOf(nums: number[], p: number): number | undefined {
     if (nums.length === 0) {
@@ -268,7 +268,6 @@ export function computeReturningPlayersPerWeek(
 }
 
 export const RIVALRY_MIN_GAMES = 5;
-export const RIVALRY_TOP_N = 100;
 export const RIVALRY_PUBLIC_TOP_N = 25;
 
 export function pairKey(userA: string, userB: string): string {
@@ -284,7 +283,7 @@ export type RivalryPairResult = {
 export function computeRivalryPairs(
     recs: APGameRecord[],
     minGames: number = RIVALRY_MIN_GAMES,
-    topN: number = RIVALRY_TOP_N,
+    topN?: number,
 ): RivalryPairResult[] {
     const counts = new Map<string, RivalryPairResult>();
     for (const rec of recs) {
@@ -306,10 +305,13 @@ export function computeRivalryPairs(
             existing.n++;
         }
     }
-    return [...counts.values()]
+    const sorted = [...counts.values()]
         .filter((p) => p.n >= minGames)
-        .sort((a, b) => b.n - a.n || a.userA.localeCompare(b.userA) || a.userB.localeCompare(b.userB))
-        .slice(0, topN);
+        .sort((a, b) => b.n - a.n || a.userA.localeCompare(b.userA) || a.userB.localeCompare(b.userB));
+    if (topN === undefined) {
+        return sorted;
+    }
+    return sorted.slice(0, topN);
 }
 
 export type AnonymizedRivalryResult = {
@@ -322,6 +324,27 @@ export function anonymizeRivalries(pairs: RivalryPairResult[]): AnonymizedRivalr
     return pairs.map((p, i) => ({
         rank: i + 1,
         label: `Pair ${i + 1}`,
+        n: p.n,
+    }));
+}
+
+export type IdentifiedRivalryPairResult = {
+    userA: string;
+    nameA: string;
+    userB: string;
+    nameB: string;
+    n: number;
+};
+
+export function enrichRivalryPairsWithDisplayNames(
+    pairs: RivalryPairResult[],
+    displayNames: Map<string, string>,
+): IdentifiedRivalryPairResult[] {
+    return pairs.map((p) => ({
+        userA: p.userA,
+        nameA: displayNames.get(p.userA) ?? p.userA,
+        userB: p.userB,
+        nameB: displayNames.get(p.userB) ?? p.userB,
         n: p.n,
     }));
 }
