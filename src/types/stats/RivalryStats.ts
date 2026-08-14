@@ -23,4 +23,8 @@ export type AnonymizedRivalry = {
     rank: number;
     label: string;
     n: number;
+    players?: {
+        id: string;
+        name: string;
+    }[];
 };

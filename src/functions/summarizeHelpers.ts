@@ -318,6 +318,10 @@ export type AnonymizedRivalryResult = {
     rank: number;
     label: string;
     n: number;
+    players?: {
+        id: string;
+        name: string;
+    }[];
 };
 
 export function anonymizeRivalries(pairs: RivalryPairResult[]): AnonymizedRivalryResult[] {
@@ -326,6 +330,34 @@ export function anonymizeRivalries(pairs: RivalryPairResult[]): AnonymizedRivalr
         label: `Pair ${i + 1}`,
         n: p.n,
     }));
+}
+
+export function publishRivalries(
+    pairs: RivalryPairResult[],
+    publicUserIds: Set<string>,
+    displayNames: Map<string, string>,
+): AnonymizedRivalryResult[] {
+    return pairs.map((p, i) => {
+        const rank = i + 1;
+        if (publicUserIds.has(p.userA) && publicUserIds.has(p.userB)) {
+            const nameA = displayNames.get(p.userA) ?? p.userA;
+            const nameB = displayNames.get(p.userB) ?? p.userB;
+            return {
+                rank,
+                label: `${nameA} vs ${nameB}`,
+                n: p.n,
+                players: [
+                    { id: p.userA, name: nameA },
+                    { id: p.userB, name: nameB },
+                ],
+            };
+        }
+        return {
+            rank,
+            label: `Pair ${rank}`,
+            n: p.n,
+        };
+    });
 }
 
 export type IdentifiedRivalryPairResult = {
