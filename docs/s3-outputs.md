@@ -51,7 +51,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `activeGeoStats` | Players with completed games, by profile country |
 | `rivalries` | Top anonymized two-player pair frequencies (no user IDs) |
 | `seasonality` | Games and players by UTC day-of-week and hour-of-day |
-| `hoursPer` | `{ mean, median, n, byWeek }` — hours per move site-wide |
+| `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p5–p95) hours per move site-wide |
 
 Full field documentation: [Summarize](/crons/summarize/).
 

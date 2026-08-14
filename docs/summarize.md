@@ -133,12 +133,12 @@ Structured object (`HoursPerStats`):
 
 | Field | Meaning |
 |-------|---------|
-| `mean` | Move-weighted mean hours per move slot |
-| `median` | Median of per-game hours-per-move rates |
+| `mean` | Move-weighted mean of winsorized per-game rates |
+| `median` | Median of winsorized per-game rates |
 | `n` | Number of qualifying games |
-| `byWeek` | Median hours per move per week bucket |
+| `byWeek` | Median winsorized hours per move per week bucket |
 
-Excludes games ending by clock timeout or abandonment, games with fewer than two move rounds, and per-game rates above **200 hours per move** (`HOURS_PER_MOVE_MAX`).
+Excludes games ending by clock timeout or abandonment and games with fewer than two move rounds. Per-game rates are **winsorized at the 5th and 95th percentiles** so extreme outliers (very slow correspondence games, bad timestamps) do not dominate the summary.
 
 ### Geographic stats
 
@@ -192,7 +192,7 @@ Based on `header["date-end"]` in **UTC**:
 | `recordHasTimeout` / `recordHasAbandoned` | Detect end-of-game timeout states |
 | `findTimeoutPlayerSeat` | Identify which player timed out (clock only) |
 | `computeTimeoutHistogramRates` | Weekly clock-timeout rates |
-| `computeHoursPerStats` | Mean, median, and weekly trend for hours per move |
+| `computeHoursPerStats` | Winsorized mean, median, and weekly trend for hours per move |
 | `computeReturningPlayersPerWeek` | Returning-player histogram |
 | `recordWasPied` / `gameSupportsPie` | Pie rule stats |
 | `gameSupportsMultiPlayerCount` | Multi-player-capable metas |

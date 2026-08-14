@@ -13,9 +13,9 @@ import {
     gameSupportsMultiPlayerCount,
     gameSupportsPie,
     getGlickoPeriodIndex,
-    HOURS_PER_MOVE_MAX,
     maxOf,
     medianOf,
+    percentileOf,
     partitionByGlickoPeriod,
     recordHasAbandoned,
     recordHasTimeout,
@@ -93,6 +93,14 @@ describe("medianOf", () => {
     });
 });
 
+describe("percentileOf", () => {
+    it("interpolates between sorted values", () => {
+        expect(percentileOf([1, 2, 3, 4, 5], 0)).toBe(1);
+        expect(percentileOf([1, 2, 3, 4, 5], 100)).toBe(5);
+        expect(percentileOf([1, 2, 3, 4, 5], 50)).toBe(3);
+    });
+});
+
 describe("computeHoursPerStats", () => {
     const earliestMs = 0;
     const hourMs = 60 * 60 * 1000;
@@ -107,21 +115,38 @@ describe("computeHoursPerStats", () => {
         expect(stats.median).toBe(3);
     });
 
-    it("excludes games above the hours cap", () => {
+    it("winsorizes outliers at p5 and p95", () => {
+        const hourMs = 60 * 60 * 1000;
+        const games = [];
+        for (let i = 1; i <= 20; i++) {
+            games.push({ dateStartMs: 0, dateEndMs: i * hourMs, moveSlots: 1 });
+        }
+        games.push({ dateStartMs: 0, dateEndMs: 10_000 * hourMs, moveSlots: 1 });
+        const stats = computeHoursPerStats(games, 0);
+        expect(stats.n).toBe(21);
+        expect(stats.winsorizedCount).toBeGreaterThan(0);
+        expect(stats.mean).toBeLessThan(100);
+        expect(stats.median).toBeLessThan(100);
+    });
+
+    it("reports zero winsorized records when all rates fall within p5-p95", () => {
+        const hourMs = 60 * 60 * 1000;
         const stats = computeHoursPerStats([
             { dateStartMs: 0, dateEndMs: hourMs, moveSlots: 1 },
-            { dateStartMs: 0, dateEndMs: 500 * hourMs, moveSlots: 1 },
-        ], earliestMs, 200);
-        expect(stats.n).toBe(1);
-        expect(stats.mean).toBe(1);
+        ], 0);
+        expect(stats.winsorizedCount).toBe(0);
     });
 
     it("builds weekly medians aligned to completion week buckets", () => {
         const weekMs = 7 * 24 * hourMs;
-        const stats = computeHoursPerStats([
-            { dateStartMs: 0, dateEndMs: 2 * hourMs, moveSlots: 1 },
-            { dateStartMs: weekMs, dateEndMs: weekMs + 4 * hourMs, moveSlots: 1 },
-        ], earliestMs);
+        const games = [];
+        for (let i = 0; i < 5; i++) {
+            games.push({ dateStartMs: 0, dateEndMs: 2 * hourMs, moveSlots: 1 });
+        }
+        for (let i = 0; i < 5; i++) {
+            games.push({ dateStartMs: weekMs, dateEndMs: weekMs + 4 * hourMs, moveSlots: 1 });
+        }
+        const stats = computeHoursPerStats(games, earliestMs);
         expect(stats.byWeek).toEqual([2, 4]);
     });
 });
