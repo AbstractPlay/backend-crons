@@ -7,7 +7,8 @@ Source: [`src/functions/summarize.ts`](../src/functions/summarize.ts). Pure help
 ## Input
 
 1. **`ALL.json`** — full array of [`APGameRecord`](/recranks/) from the `records` cron
-2. **Live DynamoDB** — `USERS` partition query for country codes (geo stats)
+2. **`mvtimes.json`** — move-time seasonality (produced by `records-move-times` at 03:00 UTC)
+3. **Live DynamoDB** — `USERS` partition query for country codes (geo stats)
 
 ## Output
 
@@ -40,7 +41,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `geoStats` | Registered users by country (live `USERS` table) |
 | `activeGeoStats` | Players with ≥1 completed game, by profile country |
 | `rivalries` | Top anonymized two-player pair frequencies (public) |
-| `seasonality` | Completion patterns by UTC day-of-week and hour |
+| `seasonality` | Move-time activity by UTC day/hour (copied from `mvtimes.json`; last 365 days) |
 
 ## Processing stages
 
@@ -175,13 +176,16 @@ Two-player completed games only. Pairs are canonicalized (`userA < userB`). Only
 
 ### Seasonality (`seasonality`)
 
-Based on `header["date-end"]` in **UTC**:
+**Not computed in this Lambda.** Copied from `mvtimes.json` → `seasonality`, which is built by [`records-move-times`](../src/functions/records-move-times.ts) from per-move `_timestamp` values on the game stack (last **365** days). This reflects when players actually move, not when async games finish.
 
-| Field | Length | Index |
-|-------|--------|-------|
-| `gamesByDow` | 7 | `0` = Sunday … `6` = Saturday |
-| `playersByDow` | 7 | Distinct player IDs completing games that UTC day |
-| `gamesByHour` | 24 | `0`–`23` UTC hour of completion |
+| Field | Length | Meaning |
+|-------|--------|---------|
+| `movesByDow` | 7 | Move count by UTC day-of-week (`0` = Sunday … `6` = Saturday), aggregated across the window |
+| `playersByDow` | 7 | Distinct players who made at least one move on that weekday (across the window) |
+| `movesByHour` | 24 | Move count by UTC hour (`0`–`23`) |
+| `windowDays` | — | Rolling window length (365) |
+
+See [`moveSeasonality.ts`](../src/utils/moveSeasonality.ts).
 
 ## Helper module
 
@@ -197,7 +201,6 @@ Based on `header["date-end"]` in **UTC**:
 | `recordWasPied` / `gameSupportsPie` | Pie rule stats |
 | `gameSupportsMultiPlayerCount` | Multi-player-capable metas |
 | `computeRivalryPairs` / `anonymizeRivalries` / `enrichRivalryPairsWithDisplayNames` | Rivalry aggregation |
-| `computeSeasonality` | Day-of-week and hour-of-day bins |
 | `partitionByGlickoPeriod` / `computeGlickoNumPeriods` | Glicko rating periods |
 | `GLICKO_PERIOD_MS` | 60-day period constant |
 | `RIVALRY_MIN_GAMES`, `RIVALRY_PUBLIC_TOP_N` | Rivalry thresholds |

@@ -8,7 +8,6 @@ import {
     computeRivalryPairs,
     anonymizeRivalries,
     enrichRivalryPairsWithDisplayNames,
-    computeSeasonality,
     computeTimeoutHistogramRates,
     findTimeoutPlayerSeat,
     gameSupportsMultiPlayerCount,
@@ -233,30 +232,6 @@ describe("enrichRivalryPairsWithDisplayNames", () => {
             { userA: "a", nameA: "Alice", userB: "b", nameB: "Bob", n: 7 },
             { userA: "c", nameA: "c", userB: "d", nameB: "d", n: 3 },
         ]);
-    });
-});
-
-describe("computeSeasonality", () => {
-    it("bins completed games and unique players by UTC day and hour", () => {
-        const recs = [
-            {
-                header: {
-                    "date-end": "2026-01-05T15:30:00.000Z",
-                    players: [{ userid: "a" }, { userid: "b" }],
-                },
-            },
-            {
-                header: {
-                    "date-end": "2026-01-05T16:00:00.000Z",
-                    players: [{ userid: "a" }, { userid: "c" }],
-                },
-            },
-        ] as APGameRecord[];
-        const result = computeSeasonality(recs);
-        expect(result.gamesByDow[1]).toBe(2);
-        expect(result.playersByDow[1]).toBe(3);
-        expect(result.gamesByHour[15]).toBe(1);
-        expect(result.gamesByHour[16]).toBe(1);
     });
 });
 

@@ -50,14 +50,23 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `geoStats` | Registered user counts by country (from live USERS table) |
 | `activeGeoStats` | Players with completed games, by profile country |
 | `rivalries` | Top anonymized two-player pair frequencies (no user IDs) |
-| `seasonality` | Games and players by UTC day-of-week and hour-of-day |
+| `seasonality` | Move-time activity by UTC day/hour (from `mvtimes.json`; last 365 days) |
 | `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p2–p98) hours per move site-wide |
 
 Full field documentation: [Summarize](/crons/summarize/).
 
 ## `mvtimes.json`
 
-Object with keys `raw1w`, `raw1m`, `raw6m`, `raw1y`, `players1w`, … — each an array of `{ metaGame, score }` entries counting moves or unique players in that window.
+Produced by `records-move-times`. Object with:
+
+| Key | Meaning |
+|-----|---------|
+| `raw1w`, `raw1m`, `raw6m`, `raw1y` | Move counts by meta game in each rolling window |
+| `players1w`, … | Distinct active players by meta game per window |
+| `playersSum1w`, … | Cumulative unique-player scores by meta game |
+| `seasonality` | Site-wide move activity bins (last 365 days): `{ movesByDow, playersByDow, movesByHour, windowDays }` |
+
+`summarize` copies `seasonality` into `_summary.json` for the stats front end. Bins use UTC move timestamps from the DynamoDB game stack, not game completion times.
 
 ## `recommendations/cooccur.json`
 
