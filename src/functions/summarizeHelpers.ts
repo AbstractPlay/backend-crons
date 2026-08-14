@@ -95,6 +95,235 @@ export function partitionByGlickoPeriod<T extends { dateEndMs: number }>(
     return buckets;
 }
 
+export const HOURS_PER_MOVE_MAX = 200;
+const MS_PER_HOUR = 60 * 60 * 1000;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+
+export function medianOf(nums: number[]): number | undefined {
+    if (nums.length === 0) {
+        return undefined;
+    }
+    const sorted = [...nums].sort((a, b) => a - b);
+    if (sorted.length % 2 === 0) {
+        const rightIdx = sorted.length / 2;
+        const leftIdx = rightIdx - 1;
+        return (sorted[leftIdx] + sorted[rightIdx]) / 2;
+    }
+    return sorted[Math.floor(sorted.length / 2)];
+}
+
+export type HoursPerGameInput = {
+    dateStartMs: number;
+    dateEndMs: number;
+    moveSlots: number;
+};
+
+export type HoursPerStatsResult = {
+    mean: number;
+    median: number;
+    n: number;
+    byWeek: number[];
+};
+
+export function computeHoursPerStats(
+    games: HoursPerGameInput[],
+    earliestMs: number,
+    maxHours: number = HOURS_PER_MOVE_MAX,
+): HoursPerStatsResult {
+    const perGameRates: number[] = [];
+    let totalDurationMs = 0;
+    let totalMoveSlots = 0;
+    const byWeekBuckets = new Map<number, number[]>();
+
+    for (const game of games) {
+        if (game.moveSlots <= 0) {
+            continue;
+        }
+        const duration = game.dateEndMs - game.dateStartMs;
+        const hours = (duration / game.moveSlots) / MS_PER_HOUR;
+        if (hours > maxHours) {
+            continue;
+        }
+        perGameRates.push(hours);
+        totalDurationMs += duration;
+        totalMoveSlots += game.moveSlots;
+        const daysAgo = (game.dateEndMs - earliestMs) / MS_PER_DAY;
+        const bucket = Math.floor(daysAgo / 7);
+        const lst = byWeekBuckets.get(bucket);
+        if (lst === undefined) {
+            byWeekBuckets.set(bucket, [hours]);
+        } else {
+            lst.push(hours);
+        }
+    }
+
+    const mean = totalMoveSlots > 0
+        ? (totalDurationMs / totalMoveSlots) / MS_PER_HOUR
+        : 0;
+    const median = medianOf(perGameRates) ?? 0;
+    const maxBucket = maxOf([...byWeekBuckets.keys()]);
+    const byWeek: number[] = [];
+    for (let i = 0; i <= maxBucket; i++) {
+        byWeek.push(medianOf(byWeekBuckets.get(i) ?? []) ?? 0);
+    }
+
+    return {
+        mean,
+        median,
+        n: perGameRates.length,
+        byWeek,
+    };
+}
+
+export type WeekActivity = {
+    user: string;
+    time: number;
+};
+
+export function recordWasPied(header: APGameRecord["header"]): boolean {
+    if (header.pied === true) {
+        return true;
+    }
+    const pieInvoked = (header as { "pie-invoked"?: boolean })["pie-invoked"];
+    return pieInvoked === true;
+}
+
+export function gameSupportsPie(flags: string[] | undefined): boolean {
+    if (flags === undefined) {
+        return false;
+    }
+    return flags.includes("pie") || flags.includes("pie-even");
+}
+
+export function gameSupportsMultiPlayerCount(playercounts: number[]): boolean {
+    return playercounts.some((n) => n > 2);
+}
+
+export function computeReturningPlayersPerWeek(
+    activities: WeekActivity[],
+    earliestMs: number,
+    maxBucket: number,
+): number[] {
+    const userFirstBucket = new Map<string, number>();
+    const userPlayBuckets = new Map<string, Set<number>>();
+
+    for (const { user, time } of activities) {
+        const bucket = Math.floor((time - earliestMs) / MS_PER_DAY / 7);
+        const prev = userFirstBucket.get(user);
+        if (prev === undefined || bucket < prev) {
+            userFirstBucket.set(user, bucket);
+        }
+        let set = userPlayBuckets.get(user);
+        if (set === undefined) {
+            set = new Set<number>();
+            userPlayBuckets.set(user, set);
+        }
+        set.add(bucket);
+    }
+
+    const returningPlayers: number[] = [];
+    for (let i = 0; i <= maxBucket; i++) {
+        let count = 0;
+        for (const [user, buckets] of userPlayBuckets.entries()) {
+            if (buckets.has(i) && (userFirstBucket.get(user) ?? i) < i) {
+                count++;
+            }
+        }
+        returningPlayers.push(count);
+    }
+    return returningPlayers;
+}
+
+export const RIVALRY_MIN_GAMES = 5;
+export const RIVALRY_TOP_N = 100;
+export const RIVALRY_PUBLIC_TOP_N = 25;
+
+export function pairKey(userA: string, userB: string): string {
+    return userA < userB ? `${userA}|${userB}` : `${userB}|${userA}`;
+}
+
+export type RivalryPairResult = {
+    userA: string;
+    userB: string;
+    n: number;
+};
+
+export function computeRivalryPairs(
+    recs: APGameRecord[],
+    minGames: number = RIVALRY_MIN_GAMES,
+    topN: number = RIVALRY_TOP_N,
+): RivalryPairResult[] {
+    const counts = new Map<string, RivalryPairResult>();
+    for (const rec of recs) {
+        if (rec.header.players.length !== 2) {
+            continue;
+        }
+        const p0 = rec.header.players[0].userid;
+        const p1 = rec.header.players[1].userid;
+        if (p0 === undefined || p1 === undefined) {
+            continue;
+        }
+        const userA = p0 < p1 ? p0 : p1;
+        const userB = p0 < p1 ? p1 : p0;
+        const key = pairKey(userA, userB);
+        const existing = counts.get(key);
+        if (existing === undefined) {
+            counts.set(key, { userA, userB, n: 1 });
+        } else {
+            existing.n++;
+        }
+    }
+    return [...counts.values()]
+        .filter((p) => p.n >= minGames)
+        .sort((a, b) => b.n - a.n || a.userA.localeCompare(b.userA) || a.userB.localeCompare(b.userB))
+        .slice(0, topN);
+}
+
+export type AnonymizedRivalryResult = {
+    rank: number;
+    label: string;
+    n: number;
+};
+
+export function anonymizeRivalries(pairs: RivalryPairResult[]): AnonymizedRivalryResult[] {
+    return pairs.map((p, i) => ({
+        rank: i + 1,
+        label: `Pair ${i + 1}`,
+        n: p.n,
+    }));
+}
+
+export type SeasonalityResult = {
+    gamesByDow: number[];
+    playersByDow: number[];
+    gamesByHour: number[];
+};
+
+export function computeSeasonality(recs: APGameRecord[]): SeasonalityResult {
+    const gamesByDow = Array.from({ length: 7 }, () => 0);
+    const gamesByHour = Array.from({ length: 24 }, () => 0);
+    const playersByDowSets: Set<string>[] = Array.from({ length: 7 }, () => new Set<string>());
+
+    for (const rec of recs) {
+        const end = new Date(rec.header["date-end"]);
+        const dow = end.getUTCDay();
+        const hour = end.getUTCHours();
+        gamesByDow[dow]++;
+        gamesByHour[hour]++;
+        for (const p of rec.header.players) {
+            if (p.userid !== undefined) {
+                playersByDowSets[dow].add(p.userid);
+            }
+        }
+    }
+
+    return {
+        gamesByDow,
+        playersByDow: playersByDowSets.map((s) => s.size),
+        gamesByHour,
+    };
+}
+
 export function computeTimeoutHistogramRates(histTimeouts: number[], histAll: number[]): number[] {
     const len = Math.max(histTimeouts.length, histAll.length);
     const rates: number[] = [];

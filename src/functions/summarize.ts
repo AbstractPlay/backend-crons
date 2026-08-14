@@ -6,23 +6,37 @@ import { isoToCountryCode } from "../utils/isoToCountryCode.js";
 import { Handler } from "aws-lambda";
 import { type IRating, type IGlickoRating, APGameRecord, ELOBasic, Glicko2, type ITrueskillRating, Trueskill } from "@abstractplay/recranks";
 import { gameinfo, replacer } from "../gameslibRequire.js";
-import type { UserRating, StatSummary } from "types/index.js";
-import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats } from "types/index.js";
+import type { UserRating, StatSummary, RivalriesFull } from "types/index.js";
+import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats, MetaPieStats, MetaPlayerCountMix, PlayContextStats } from "types/index.js";
 import {
     GLICKO_PERIOD_MS,
     computeGlickoNumPeriods,
+    computeHoursPerStats,
+    computeReturningPlayersPerWeek,
+    computeRivalryPairs,
+    anonymizeRivalries,
+    computeSeasonality,
     computeTimeoutHistogramRates,
+    RIVALRY_MIN_GAMES,
+    RIVALRY_PUBLIC_TOP_N,
     findTimeoutPlayerSeat,
+    gameSupportsMultiPlayerCount,
+    gameSupportsPie,
+    HOURS_PER_MOVE_MAX,
     maxOf,
+    type HoursPerGameInput,
     partitionByGlickoPeriod,
     recordHasAbandoned,
     recordHasTimeout,
+    recordWasPied,
 } from "./summarizeHelpers.js";
 // import { nanoid } from "nanoid";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
 const REC_BUCKET = "records.abstractplay.com";
+const OPS_BUCKET = "private-ops-153672715141-us-east-1-an";
+const RIVALRIES_OPS_KEY = "stats/rivalries.json";
 const clnt = new DynamoDBClient({ region: REGION });
 const marshallOptions = {
   // Whether to automatically convert empty strings, blobs, and sets to `null`.
@@ -84,8 +98,12 @@ export const handler: Handler = async (event: any, context?: any) => {
         const ratingList: RatingList = [];
         let oldest: string|undefined;
         let newest: string|undefined;
-        const timeouts: UserNumber[] = [];
-        const siteTimeouts: number[] = [];
+        const playerTimeouts: UserNumber[] = [];
+        const siteEndFailures: number[] = [];
+        const siteClockTimeouts: number[] = [];
+        const siteAbandonments: number[] = [];
+        let casualGames = 0;
+        let eventGames = 0;
 
         console.log("Segmenting records by meta and player");
         for (const rec of recs) {
@@ -99,6 +117,11 @@ export const handler: Handler = async (event: any, context?: any) => {
             }
             // separate records by meta
             pushToMap(meta2recs, rec.header.game.name, rec);
+            if (rec.header.event !== undefined && rec.header.event !== "") {
+                eventGames++;
+            } else {
+                casualGames++;
+            }
             // track newest/oldest records
             if (oldest === undefined) {
                 oldest = rec.header["date-end"]
@@ -112,33 +135,33 @@ export const handler: Handler = async (event: any, context?: any) => {
                 const sorted = [newest, rec.header["date-end"]].sort((a, b) => b.localeCompare(a));
                 newest = sorted[0];
             }
-            // find timeouts
+            // clock timeouts and abandonments (tracked separately for player stats)
             if (recordHasAbandoned(rec.moves)) {
                 const datems = new Date(rec.header["date-end"]).getTime();
-                siteTimeouts.push(datems);
-                for (const p of rec.header.players) {
-                    timeouts.push({user: p.userid!, value: datems});
-                }
-            }
-            // if timeout, assign timeout to player who timed out
-            else if (recordHasTimeout(rec.moves)) {
+                siteEndFailures.push(datems);
+                siteAbandonments.push(datems);
+            } else if (recordHasTimeout(rec.moves)) {
                 const datems = new Date(rec.header["date-end"]).getTime();
-                siteTimeouts.push(datems);
+                siteEndFailures.push(datems);
+                siteClockTimeouts.push(datems);
                 const seatIdx = findTimeoutPlayerSeat(rec.moves, rec.header.players.length);
                 if (seatIdx !== undefined) {
                     const p = rec.header.players[seatIdx];
-                    timeouts.push({user: p.userid!, value: datems});
+                    playerTimeouts.push({user: p.userid!, value: datems});
                 }
             }
         }
         const numPlayers = playerIDs.size;
-        const timeoutRate = siteTimeouts.length / recs.length;
+        const timeoutRate = siteEndFailures.length / recs.length;
+        const abandonedRate = siteAbandonments.length / recs.length;
+        const playContext: PlayContextStats = { casual: casualGames, event: eventGames };
 
         // META STATS
         console.log("Calculating meta stats");
         const calcStats = (recs: APGameRecord[]): TwoPlayerStats|undefined => {
             let n = 0;
             let fpWins = 0;
+            let draws = 0;
             const lengths: number[] = [];
             for (const rec of recs) {
                 if ( (rec.header.players.length === 2) && (rec.moves.length > 2) ) {
@@ -148,6 +171,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                         fpWins++;
                     } else if (rec.header.players[0].result === rec.header.players[1].result) {
                         fpWins += 0.5;
+                        draws++;
                     }
                 }
             }
@@ -169,6 +193,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                     lenAvg: avg,
                     lenMedian: median,
                     winsFirst: wins,
+                    drawRate: draws / n,
                 };
             }
         }
@@ -190,6 +215,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                     lenAvg: combined.lenAvg,
                     lenMedian: combined.lenMedian,
                     winsFirst: combined.winsFirst,
+                    drawRate: combined.drawRate,
                 };
             }
             const allVariants = new Set<string>(recs.map(r => sortVariants(r)));
@@ -207,11 +233,46 @@ export const handler: Handler = async (event: any, context?: any) => {
                             lenAvg: substats.lenAvg,
                             lenMedian: substats.lenMedian,
                             winsFirst: substats.winsFirst,
+                            drawRate: substats.drawRate,
                         };
                     }
                 }
             }
         }
+
+        console.log("Calculating pie rates and player count mix");
+        const pieRates: MetaPieStats[] = [];
+        const playerCountMix: MetaPlayerCountMix[] = [];
+        for (const [game, gameRecs] of meta2recs.entries()) {
+            const found = [...gameinfo.values()].find(i => i.name === game);
+            if (found === undefined) {
+                continue;
+            }
+            if (gameSupportsPie(found.flags)) {
+                let pied = 0;
+                for (const rec of gameRecs) {
+                    if (recordWasPied(rec.header)) {
+                        pied++;
+                    }
+                }
+                pieRates.push({
+                    game,
+                    n: gameRecs.length,
+                    pied,
+                    rate: gameRecs.length > 0 ? pied / gameRecs.length : 0,
+                });
+            }
+            if (gameSupportsMultiPlayerCount(found.playercounts)) {
+                const byCount: { [playerCount: string]: number } = {};
+                for (const rec of gameRecs) {
+                    const key = String(rec.header.players.length);
+                    byCount[key] = (byCount[key] ?? 0) + 1;
+                }
+                playerCountMix.push({ game, byCount });
+            }
+        }
+        pieRates.sort((a, b) => a.game.localeCompare(b.game));
+        playerCountMix.sort((a, b) => a.game.localeCompare(b.game));
 
         // tabulate each metaGame's h index
         console.log("Calculating game h indexes")
@@ -494,6 +555,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         const histListPlayers: {user: string; bucket: number}[] = [];
         const completedList: {user: string; time: number}[] = [];
         const histTimeoutBuckets: number[] = [];
+        const histAbandonedBuckets: number[] = [];
         const earliest = Math.min(...recs.map(rec => new Date(rec.header["date-end"]).getTime()));
         // all first
         for (const rec of recs) {
@@ -520,8 +582,8 @@ export const handler: Handler = async (event: any, context?: any) => {
             histAllPlayers.push(users.size);
         }
 
-        // timeouts
-        for (const t of siteTimeouts) {
+        // clock timeouts (site-wide histogram; player histograms use playerTimeouts only)
+        for (const t of siteClockTimeouts) {
             const daysAgo = (t - earliest) / (24 * 60 * 60 * 1000);
             const bucket = Math.floor(daysAgo / 7);
             histTimeoutBuckets.push(bucket);
@@ -531,6 +593,17 @@ export const handler: Handler = async (event: any, context?: any) => {
             histTimeoutCounts.push(histTimeoutBuckets.filter(x => x === i).length);
         }
         const histTimeouts = computeTimeoutHistogramRates(histTimeoutCounts, histAll);
+
+        for (const t of siteAbandonments) {
+            const daysAgo = (t - earliest) / (24 * 60 * 60 * 1000);
+            const bucket = Math.floor(daysAgo / 7);
+            histAbandonedBuckets.push(bucket);
+        }
+        const histAbandonedCounts: number[] = [];
+        for (let i = 0; i <= maxOf(histAbandonedBuckets); i++) {
+            histAbandonedCounts.push(histAbandonedBuckets.filter(x => x === i).length);
+        }
+        const histAbandoned = computeTimeoutHistogramRates(histAbandonedCounts, histAll);
 
         const histMeta: GameNumList[] = [];
         const recent: GameNumber[] = [];
@@ -561,7 +634,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         // individual player timeouts
         const histPlayerTimeouts: UserNumList[] = [];
         for (const userid of (new Set<string>(histListPlayers.map(x => x.user)))) {
-            const toSubset = timeouts.filter(x => x.user === userid);
+            const toSubset = playerTimeouts.filter(x => x.user === userid);
             const subset: {bucket: number}[] = [];
             for (const {value} of toSubset) {
                 const daysAgo = (value - earliest) / (24 * 60 * 60 * 1000);
@@ -590,29 +663,32 @@ export const handler: Handler = async (event: any, context?: any) => {
         for (let i = 0; i <= maxBucket; i++) {
             firstTimers.push(buckets.filter(x => x === i).length);
         }
+        const returningPlayers = computeReturningPlayersPerWeek(completedList, earliest, maxBucket);
 
         // HOURS PER MOVE
         console.log("Calculating hours per move");
-        const hoursPer: number[] = [];
+        const hoursPerGames: HoursPerGameInput[] = [];
         for (const rec of recs) {
-            // omit "timeout" and "abandoned" records
             if (recordHasTimeout(rec.moves) || recordHasAbandoned(rec.moves) || (rec.moves.length < 2)) {
-                // console.log(`Skipping record ${rec.header.site.gameid} because it contains a timeout move`)
                 continue;
             }
-            if (rec.header["date-start"] !== undefined) {
-                const started = (new Date(rec.header["date-start"])).getTime();
-                const completed = (new Date(rec.header["date-end"])).getTime();
-                const duration = completed - started;
-                const numMoves = (rec.moves as any[]).map(m => m.length).reduce((prev, curr) => prev + curr, 0);
-                const secsPer = duration / numMoves;
-                const hours = secsPer / (60 * 60 * 1000);
-                if (hours > 200) {
-                    console.log(`Excessive hoursPer found at record ${rec.header.site.gameid}`);
-                }
-                hoursPer.push(hours);
+            if (rec.header["date-start"] === undefined) {
+                continue;
             }
+            const started = (new Date(rec.header["date-start"])).getTime();
+            const completed = (new Date(rec.header["date-end"])).getTime();
+            const moveSlots = (rec.moves as any[]).map(m => m.length).reduce((prev, curr) => prev + curr, 0);
+            if (moveSlots <= 0) {
+                continue;
+            }
+            const hours = ((completed - started) / moveSlots) / (60 * 60 * 1000);
+            if (hours > HOURS_PER_MOVE_MAX) {
+                console.log(`Excessive hoursPer found at record ${rec.header.site.gameid}`);
+                continue;
+            }
+            hoursPerGames.push({ dateStartMs: started, dateEndMs: completed, moveSlots });
         }
+        const hoursPer = computeHoursPerStats(hoursPerGames, earliest);
 
         // gathering geographical statistics
         let users: Record<string, any>[]|undefined;
@@ -636,6 +712,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             throw err;
         }
         const countryCounts = new Map<string, number>();
+        const userCountry = new Map<string, string>();
         for (const user of users) {
             const alpha2 = isoToCountryCode(user.country, "alpha2");
             if (alpha2 !== undefined) {
@@ -645,6 +722,9 @@ export const handler: Handler = async (event: any, context?: any) => {
                 } else {
                     countryCounts.set(alpha2, 1);
                 }
+                if (typeof user.sk === "string") {
+                    userCountry.set(user.sk, alpha2);
+                }
             }
         }
         const geoStats: GeoStats[] = [];
@@ -652,6 +732,29 @@ export const handler: Handler = async (event: any, context?: any) => {
             const name = isoToCountryCode(alpha2, "countryName");
             geoStats.push({code: alpha2, n: count, name: name || alpha2});
         }
+        const activeCountryCounts = new Map<string, number>();
+        for (const uid of playerIDs) {
+            const alpha2 = userCountry.get(uid);
+            if (alpha2 !== undefined) {
+                activeCountryCounts.set(alpha2, (activeCountryCounts.get(alpha2) ?? 0) + 1);
+            }
+        }
+        const activeGeoStats: GeoStats[] = [];
+        for (const [alpha2, count] of activeCountryCounts.entries()) {
+            const name = isoToCountryCode(alpha2, "countryName");
+            activeGeoStats.push({code: alpha2, n: count, name: name || alpha2});
+        }
+        activeGeoStats.sort((a, b) => b.n - a.n);
+
+        console.log("Calculating rivalries and seasonality");
+        const rivalryPairsFull = computeRivalryPairs(recs);
+        const rivalries = anonymizeRivalries(rivalryPairsFull).slice(0, RIVALRY_PUBLIC_TOP_N);
+        const seasonality = computeSeasonality(recs);
+        const rivalriesFull: RivalriesFull = {
+            generated: new Date().toISOString(),
+            minGames: RIVALRY_MIN_GAMES,
+            pairs: rivalryPairsFull,
+        };
 
         const summary: StatSummary = {
             numGames,
@@ -659,6 +762,10 @@ export const handler: Handler = async (event: any, context?: any) => {
             oldestRec: oldest,
             newestRec: newest,
             timeoutRate,
+            abandonedRate,
+            playContext,
+            pieRates,
+            playerCountMix,
             ratings: {
                 highest: rawList,
                 avg: avgRatings,
@@ -675,7 +782,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                 social,
                 h,
                 hOpp,
-                timeouts,
+                timeouts: playerTimeouts,
             },
             histograms: {
                 all: histAll,
@@ -684,14 +791,29 @@ export const handler: Handler = async (event: any, context?: any) => {
                 meta: histMeta,
                 players: histPlayers,
                 firstTimers,
+                returningPlayers,
                 timeouts: histTimeouts,
+                abandoned: histAbandoned,
             },
             hMeta,
             hoursPer,
             recent,
             metaStats,
             geoStats,
+            activeGeoStats,
+            rivalries,
+            seasonality,
         }
+        const opsCmd = new PutObjectCommand({
+            Bucket: OPS_BUCKET,
+            Key: RIVALRIES_OPS_KEY,
+            Body: JSON.stringify(rivalriesFull),
+        });
+        const opsResponse = await s3.send(opsCmd);
+        if (opsResponse["$metadata"].httpStatusCode !== 200) {
+            console.log(opsResponse);
+        }
+
         const cmd = new PutObjectCommand({
             Bucket: REC_BUCKET,
             Key: "_summary.json",

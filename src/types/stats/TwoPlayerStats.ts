@@ -3,4 +3,5 @@ export interface TwoPlayerStats {
     lenAvg: number;
     lenMedian: number;
     winsFirst: number;
+    drawRate: number;
 }

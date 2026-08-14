@@ -37,14 +37,21 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 |-------|---------|
 | `numGames`, `numPlayers` | Totals from `ALL.json` |
 | `oldestRec`, `newestRec` | Date range of completed games |
-| `timeoutRate` | Fraction of games with timeout or abandoned moves |
+| `timeoutRate` | Fraction of games with clock timeout **or** abandonment |
+| `abandonedRate` | Fraction of games closed by abandonment only |
+| `playContext` | Casual vs tournament/org-event game counts |
+| `pieRates` | Pie invocation rates for supported meta games |
+| `playerCountMix` | Player-count distribution for multi-player metas |
 | `ratings` | ELO/Glicko/Trueskill aggregates (`highest`, `avg`, `weighted`) |
 | `topPlayers` | Top-rated player/game pairs |
 | `plays`, `players` | Game and player activity rankings |
-| `histograms` | Play-count distributions |
-| `metaStats` | Per-game two-player stats (length, first-player win rate) |
-| `geoStats` | Player counts by country (from live USERS table) |
-| `hoursPer` | Distribution of hours per move site-wide |
+| `histograms` | Play-count distributions, first-timers, returning players, timeout/abandonment rates |
+| `metaStats` | Per-game two-player stats (length, first-player win rate, draw rate) |
+| `geoStats` | Registered user counts by country (from live USERS table) |
+| `activeGeoStats` | Players with completed games, by profile country |
+| `rivalries` | Top anonymized two-player pair frequencies (no user IDs) |
+| `seasonality` | Games and players by UTC day-of-week and hour-of-day |
+| `hoursPer` | `{ mean, median, n, byWeek }` — hours per move site-wide |
 
 Full field documentation: [Summarize](/crons/summarize/).
 
@@ -66,8 +73,9 @@ Not served via CloudFront. IAM-restricted.
 | `recommendations/analytics/daily/YYYY-MM-DD.json` | `records-rec-analytics` | UTC daily impression rollups |
 | `recommendations/analytics/summary.json` | `records-rec-analytics` | Latest window + rolling 7d/30d |
 | `recommendations/analytics/report/YYYY-MM-DD.md` | `records-rec-analytics` | Human/agent-readable report |
+| `stats/rivalries.json` | `summarize` | Full two-player rivalry pairs with user IDs (min 5 shared games) |
 
-See [Recommendation analytics](/crons/recommendations-analytics/).
+See [Recommendation analytics](/crons/recommendations-analytics/) and [Summarize](/crons/summarize/).
 
 ## Dump bucket layout
 
