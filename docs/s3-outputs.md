@@ -56,6 +56,19 @@ Object with keys `raw1w`, `raw1m`, `raw6m`, `raw1y`, `players1w`, … — each a
 
 PMI-normalized co-occurrence neighbors per meta-game for the hybrid recommender. Includes optional stars boost (`includeStarredBoost`). Full schema and algorithm: [Recommendation co-occurrence](/crons/recommendations-cooccur/).
 
+## Private ops bucket (`private-ops-153672715141-us-east-1-an`)
+
+Not served via CloudFront. IAM-restricted.
+
+| Key pattern | Producer | Description |
+|-------------|----------|-------------|
+| `recommendations/analytics/_state.json` | `records-rec-analytics` | Watermark and dedupe state |
+| `recommendations/analytics/daily/YYYY-MM-DD.json` | `records-rec-analytics` | UTC daily impression rollups |
+| `recommendations/analytics/summary.json` | `records-rec-analytics` | Latest window + rolling 7d/30d |
+| `recommendations/analytics/report/YYYY-MM-DD.md` | `records-rec-analytics` | Human/agent-readable report |
+
+See [Recommendation analytics](/crons/recommendations-analytics/).
+
 ## Dump bucket layout
 
 Exports from `dumpdb` appear under:
@@ -75,5 +88,6 @@ Batch functions locate the newest `manifest-summary.json`, extract the UID, and 
 
 - [Records pipeline](/crons/pipeline/)
 - [Recommendation co-occurrence](/crons/recommendations-cooccur/)
+- [Recommendation analytics](/crons/recommendations-analytics/)
 - [Recranks schema reference](/recranks/schema-reference/)
 - [Functions reference](/crons/functions/)
