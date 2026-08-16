@@ -189,6 +189,20 @@ functions:
           # 3am UTC daily (live DynamoDB scan of RECOMMENDS# events)
           schedule: cron(0 3 * * ? *)
 
+  layout-feedback-analytics:
+    handler: src/functions/records-layout-feedback-analytics.handler
+    description: Aggregates Game Move beta layout feedback events to private ops S3
+    timeout: 900
+    memorySize: 1024
+    logRetentionInDays: 30
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-layout-feedback-analytics
+          description: Nightly Game Move layout feedback analytics
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 3am UTC daily (live DynamoDB scan of LAYOUTFB# events)
+          schedule: cron(0 3 * * ? *)
+
   records-manifest:
     handler: src/functions/records-manifest.handler
     description: Generates manifest file for records bucket

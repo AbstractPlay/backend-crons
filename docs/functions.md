@@ -76,6 +76,18 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Output** | `recommendations/analytics/*` on private ops S3 |
 | **Notes** | See [Recommendation analytics](/crons/recommendations-analytics/) |
 
+### `layout-feedback-analytics`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/layout-feedback-analytics.ts` |
+| **Schedule** | Daily 03:00 UTC |
+| **Timeout / memory** | 900 s / 1024 MB |
+| **Layer** | No |
+| **Input** | Live DynamoDB scan (`LAYOUTFB#*`) |
+| **Output** | `gamemove-layout/analytics/*` on private ops S3 |
+| **Notes** | See [Game Move layout analytics](/crons/game-move-layout-analytics/) |
+
 ### `tournament-data`
 
 | | |
