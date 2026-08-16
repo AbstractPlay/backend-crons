@@ -11,7 +11,7 @@ EventBridge cron expressions use `*` in the day-of-month field (daily). For exam
 | Time | Function(s) | Depends on |
 |------|-------------|------------|
 | Daily 00:00 | `dumpdb` | — |
-| Daily 03:00 | `records`, `records-ttm`, `records-move-times`, `records-cooccur`, `records-rec-analytics`, `records-layout-feedback-analytics`, `tournament-data` | Latest completed dump in `abstractplay-db-dump` (except `records-rec-analytics` and `records-layout-feedback-analytics` — live DDB scan) |
+| Daily 03:00 | `records`, `records-ttm`, `records-move-times`, `records-cooccur`, `records-rec-analytics`, `layout-feedback-analytics`, `tournament-data` | Latest completed dump in `abstractplay-db-dump` (except `records-rec-analytics` and `layout-feedback-analytics` — live DDB scan) |
 | Daily 04:00 | `records-manifest` | Records batch outputs |
 | Daily 06:00 | `summarize` | `ALL.json` in records bucket |
 | Daily 07:00 | `records-manifest` | Post-summarize refresh |
@@ -25,7 +25,7 @@ flowchart TD
     dumpdb["dumpdb daily 00:00 UTC"] --> batch["records + records-ttm + records-move-times + records-cooccur + tournament-data daily 03:00"]
     recanalytics["records-rec-analytics daily 03:00"] --> ddb[(DynamoDB live)]
     recanalytics --> s3ops[(private ops S3)]
-    layoutfb["records-layout-feedback-analytics daily 03:00"] --> ddb
+    layoutfb["layout-feedback-analytics daily 03:00"] --> ddb
     layoutfb --> s3ops
     batch --> manifest1["records-manifest daily 04:00"]
     batch --> summarize["summarize daily 06:00"]
@@ -76,7 +76,7 @@ Scans completed GAME records and `USER` records (for `stars[]`) from the dump. B
 
 Scans live DynamoDB `RECOMMENDS#` impression events (not the ION dump). Computes anonymized funnel/CTR rollups and writes to the private ops bucket. See [Recommendation analytics](/crons/recommendations-analytics/).
 
-### `records-layout-feedback-analytics`
+### `layout-feedback-analytics`
 
 Scans live DynamoDB `LAYOUTFB#` layout feedback events. Aggregates satisfaction, bailout, switch metrics and copies full note text to the private ops bucket for developer / ML review. See [Game Move layout analytics](/crons/game-move-layout-analytics/).
 

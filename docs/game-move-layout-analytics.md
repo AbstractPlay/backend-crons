@@ -1,4 +1,4 @@
-# Game Move layout feedback analytics (`records-layout-feedback-analytics`)
+# Game Move layout feedback analytics (`layout-feedback-analytics`)
 
 Nightly aggregation of beta Game Move layout feedback events (`LAYOUTFB#` in DynamoDB) into private ops S3 for developer review and optional ML analysis.
 
@@ -31,8 +31,8 @@ Note records include `userHash` (SHA-256 of Cognito sub from `pk`) for correlati
 ## Manual invoke
 
 ```bash
-serverless invoke -f records-layout-feedback-analytics --stage dev
-serverless invoke -f records-layout-feedback-analytics --stage prod
+serverless invoke -f layout-feedback-analytics --stage dev
+serverless invoke -f layout-feedback-analytics --stage prod
 ```
 
 ## DynamoDB cleanup

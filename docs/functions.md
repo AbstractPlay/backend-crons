@@ -76,11 +76,11 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Output** | `recommendations/analytics/*` on private ops S3 |
 | **Notes** | See [Recommendation analytics](/crons/recommendations-analytics/) |
 
-### `records-layout-feedback-analytics`
+### `layout-feedback-analytics`
 
 | | |
 |---|---|
-| **Handler** | `src/functions/records-layout-feedback-analytics.ts` |
+| **Handler** | `src/functions/layout-feedback-analytics.ts` |
 | **Schedule** | Daily 03:00 UTC |
 | **Timeout / memory** | 900 s / 1024 MB |
 | **Layer** | No |
