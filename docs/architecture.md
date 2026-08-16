@@ -18,6 +18,7 @@ Defined in [`serverless.yml`](../serverless.yml). Schedules are **daily** unless
 | `records-move-times` | Daily 03:00 | Move activity histograms |
 | `records-cooccur` | Daily 03:00 | PMI co-occurrence for recommendations |
 | `records-rec-analytics` | Daily 03:00 | Recommendation impression funnel analytics (ops S3) |
+| `records-layout-feedback-analytics` | Daily 03:00 | Game Move beta layout feedback analytics (ops S3) |
 | `tournament-data` | Daily 03:00 | Tournament summaries from dump |
 | `records-manifest` | Daily 04:00 and 07:00 | S3 listing + CloudFront invalidation |
 | `summarize` | Daily 06:00 | Site analytics from `ALL.json` |
