@@ -29,7 +29,7 @@
   "homepage": "https://github.com/AbstractPlay/backend-crons#readme",
   "dependencies": {
     "@abstractplay/gameslib": "1.0.0-ci-30756123354.0",
-    "@abstractplay/recranks": "latest",
+    "@abstractplay/recranks": "^1.0.0-ci-31646933950.0",
     "@abstractplay/renderer": "1.0.0-ci-30510386936.0",
     "@aws-sdk/client-dynamodb": "^3.321.1",
     "@aws-sdk/client-s3": "^3.374.0",

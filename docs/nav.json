@@ -8,6 +8,7 @@
   { "slug": "s3-outputs", "title": "S3 outputs" },
   { "slug": "recommendations-cooccur", "title": "Recommendation co-occurrence" },
   { "slug": "recommendations-analytics", "title": "Recommendation analytics" },
+  { "slug": "game-move-layout-analytics", "title": "Game Move layout analytics" },
   { "slug": "summarize" },
   { "slug": "live-crons", "title": "Live crons" }
 ]

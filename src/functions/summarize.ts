@@ -28,6 +28,8 @@ import {
     partitionByGlickoPeriod,
     recordHasAbandoned,
     recordHasTimeout,
+    recordMoveSlotCount,
+    recordRoundCount,
     recordWasPied,
 } from "./summarizeHelpers.js";
 // import { nanoid } from "nanoid";
@@ -204,9 +206,9 @@ export const handler: Handler = async (event: any, context?: any) => {
             let draws = 0;
             const lengths: number[] = [];
             for (const rec of recs) {
-                if ( (rec.header.players.length === 2) && (rec.moves.length > 2) ) {
+                if ( (rec.header.players.length === 2) && (recordRoundCount(rec) > 2) ) {
                     n++;
-                    lengths.push(rec.moves.length);
+                    lengths.push(recordRoundCount(rec));
                     if (rec.header.players[0].result > rec.header.players[1].result) {
                         fpWins++;
                     } else if (rec.header.players[0].result === rec.header.players[1].result) {
@@ -709,7 +711,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         console.log("Calculating hours per move");
         const hoursPerGames: HoursPerGameInput[] = [];
         for (const rec of recs) {
-            if (recordHasTimeout(rec.moves) || recordHasAbandoned(rec.moves) || (rec.moves.length < 2)) {
+            if (recordHasTimeout(rec.moves) || recordHasAbandoned(rec.moves) || (recordRoundCount(rec) < 2)) {
                 continue;
             }
             if (rec.header["date-start"] === undefined) {
@@ -717,7 +719,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             }
             const started = (new Date(rec.header["date-start"])).getTime();
             const completed = (new Date(rec.header["date-end"])).getTime();
-            const moveSlots = (rec.moves as any[]).map(m => m.length).reduce((prev, curr) => prev + curr, 0);
+            const moveSlots = recordMoveSlotCount(rec);
             if (moveSlots <= 0) {
                 continue;
             }
