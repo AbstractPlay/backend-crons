@@ -1,4 +1,5 @@
 import type { APGameRecord } from "@abstractplay/recranks";
+import { countRecordMoveSlots, countRecordMoves } from "@abstractplay/recranks";
 
 export const GLICKO_PERIOD_MS = 60 * 24 * 60 * 60 * 1000;
 
@@ -390,4 +391,14 @@ export function computeTimeoutHistogramRates(histTimeouts: number[], histAll: nu
         rates.push(all > 0 ? timeouts / all : 0);
     }
     return rates;
+}
+
+/** Gamerecord round count — legacy `rec.moves.length` when no `turn-model` header. */
+export function recordRoundCount(rec: APGameRecord): number {
+    return countRecordMoves(rec);
+}
+
+/** Total move slots for hours-per-move — legacy sum of round widths when no header. */
+export function recordMoveSlotCount(rec: APGameRecord): number {
+    return countRecordMoveSlots(rec);
 }

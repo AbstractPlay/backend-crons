@@ -20,6 +20,8 @@ import {
     partitionByGlickoPeriod,
     recordHasAbandoned,
     recordHasTimeout,
+    recordMoveSlotCount,
+    recordRoundCount,
     recordWasPied,
 } from "./summarizeHelpers.js";
 
@@ -389,5 +391,44 @@ describe("findTimeoutPlayerSeat", () => {
     it("returns undefined when no timeout move exists", () => {
         const moves: Moves = [["e2-e4", "e7-e5"]];
         expect(findTimeoutPlayerSeat(moves, 2)).toBeUndefined();
+    });
+});
+
+describe("recordRoundCount / recordMoveSlotCount", () => {
+    const legacyRec: APGameRecord = {
+        header: {
+            game: { name: "Test" },
+            site: { name: "Abstract Play", gameid: "legacy-1" },
+            "date-start": "2024-01-01T12:00:00Z",
+            "date-end": "2024-01-01T13:00:00Z",
+            "date-generated": "2024-01-01T13:00:00Z",
+            players: [
+                { name: "A", result: 1 },
+                { name: "B", result: 0 },
+            ],
+        },
+        moves: [["e4", "e5"], ["Nf3", "Nc6"], ["Bb5", "a6"]],
+    };
+
+    it("legacy records use rec.moves.length and slot sum", () => {
+        expect(recordRoundCount(legacyRec)).toBe(3);
+        expect(recordMoveSlotCount(legacyRec)).toBe(6);
+    });
+
+    it("skip-turn header counts non-empty rounds and slots only", () => {
+        const rec: APGameRecord = {
+            ...legacyRec,
+            header: {
+                ...legacyRec.header,
+                "turn-model": "skip-turn",
+            },
+            moves: [
+                ["m1", null],
+                [null, null],
+                ["m2", null],
+            ],
+        };
+        expect(recordRoundCount(rec)).toBe(2);
+        expect(recordMoveSlotCount(rec)).toBe(2);
     });
 });
