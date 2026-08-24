@@ -1,11 +1,17 @@
+import { createRequire } from "node:module";
 import { GetObjectCommand, type S3Client } from "@aws-sdk/client-s3";
-import { parser } from "stream-json";
-import { streamArray } from "stream-json/streamers/StreamArray.js";
-import type { Readable } from "node:stream";
+import type { Readable, Transform } from "node:stream";
+
+const require = createRequire(import.meta.url);
+
+/** createRequire — stream-json is CJS; ESM named imports fail on Lambda. */
+const { parser } = require("stream-json") as { parser: () => Transform };
+const { streamArray } = require("stream-json/streamers/StreamArray") as {
+    streamArray: () => Transform;
+};
 
 /**
  * Stream-parse a top-level JSON array without holding the full file string in memory.
- * Uses stream-json at runtime (esbuild external) — not bundled into the Lambda ESM artifact.
  */
 export async function streamJsonArrayFromReadable<T>(
     readable: Readable,
