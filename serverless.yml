@@ -70,6 +70,11 @@ provider:
             - dynamodb:ExportTableToPointInTime
             - dynamodb:BatchWriteItem
             - sqs:SendMessage
+            - sqs:SendMessageBatch
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            - sqs:GetQueueUrl
             - ses:SendEmail
             - ses:SendRawEmail
           Resource: "*"
@@ -85,6 +90,7 @@ provider:
             - "s3:GetObject"
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump/*"
+            - "arn:aws:s3:::records.abstractplay.com/*"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
@@ -213,16 +219,22 @@ functions:
       - !Ref AbstractplayGameslibLambdaLayer
     events:
       - eventBridge:
-          name: abstractplay-${self:provider.stage}-records-manifest
-          description: Generates static time-to-move results of each game
+          name: abstractplay-${self:provider.stage}-records-manifest-early
+          description: Manifest after records batch outputs
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
-          # 4am and 7am UTC daily (after batch jobs; 7am pass picks up summarize output)
-          schedule: cron(0 4,7 * * ? *)
+          # 4am UTC daily
+          schedule: cron(0 4 * * ? *)
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-records-manifest-late
+          description: Manifest after summarize and player-summary fan-out
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 7:30am UTC daily (summarize 6:00, fan-out 6:15, workers finish before this)
+          schedule: cron(30 7 * * ? *)
 
   summarize:
     handler: src/functions/summarize.handler
     description: Summarize generated game reports
-    timeout: 120
+    timeout: 900
     layers:
       - !Ref AbstractplayGameslibLambdaLayer
     logRetentionInDays: 30
@@ -233,6 +245,35 @@ functions:
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
           # 6am UTC daily (giving plenty of time for the record generation to complete)
           schedule: cron(0 6 * * ? *)
+
+  player-summary-fanout:
+    handler: src/functions/player-summary-fanout.handler
+    description: Enqueues per-player summary slice writes after summarize
+    timeout: 300
+    memorySize: 1024
+    logRetentionInDays: 30
+    environment:
+      PLAYER_SUMMARY_QUEUE_URL: !Ref PlayerSummaryQueue
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-player-summary-fanout
+          description: Fan out player summary slice writes via SQS
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 6:15am UTC daily (after summarize at 6:00)
+          schedule: cron(15 6 * * ? *)
+
+  player-summary-worker:
+    handler: src/functions/player-summary-worker.handler
+    description: Writes one player summary slice per SQS message
+    timeout: 30
+    memorySize: 256
+    reservedConcurrency: 25
+    logRetentionInDays: 30
+    events:
+      - sqs:
+          arn: !GetAtt PlayerSummaryQueue.Arn
+          batchSize: 5
+          maximumBatchingWindow: 5
 
   tournament-data:
     handler: src/functions/tournament-data.handler
@@ -275,6 +316,21 @@ functions:
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
           # Midnight and noon UTC every day
           schedule: cron(0 0,12 * * ? *)
+
+resources:
+  Resources:
+    PlayerSummaryDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        MessageRetentionPeriod: 1209600
+
+    PlayerSummaryQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt PlayerSummaryDeadLetterQueue.Arn
+          maxReceiveCount: 3
 
 layers:
   abstractplayGameslib:

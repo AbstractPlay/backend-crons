@@ -14,7 +14,7 @@ Public URL: `https://records.abstractplay.com/recommendations/cooccur.json`
 
 **Daily 03:00 UTC** — runs in parallel with `records`, `records-move-times`, `records-ttm`, and `tournament-data`. Reads the latest completed DynamoDB ION dump (same pattern as other dump consumers). Does **not** depend on `player/*.json` from `records` (those are written in the same parallel window).
 
-Picked up by `records-manifest` at 04:00 UTC (or 07:00 if the job runs long).
+Picked up by `records-manifest` at 04:00 UTC (or 07:30 after summarize and player-summary fan-out).
 
 ## Inputs
 

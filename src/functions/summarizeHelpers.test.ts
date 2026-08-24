@@ -2,6 +2,27 @@ import { describe, expect, it } from "vitest";
 import type { APGameRecord } from "@abstractplay/recranks";
 import {
     GLICKO_PERIOD_MS,
+    GLICKO_ESTABLISHED_RD,
+    GLICKO_PROVISIONAL_RD,
+    GLICKO_MIN_GAMES_ESTABLISHED,
+    GLICKO_MIN_GAMES_PROVISIONAL,
+    buildGlickoByGame,
+    computeGlickoSiteRatings,
+    computeGlickoGameCounts,
+    computeGlickoSiteCounts,
+    toGlickoStats,
+    isGlickoProvisional,
+    isGlickoEstablished,
+    recordPlayerTimeout,
+    timeoutStatsFromAccumulator,
+    buildPlayerTimeoutHistograms,
+    splitStatSummary,
+    buildPlayerSummaryIndexes,
+    collectPlayerSummaryUserIds,
+    toPlayerSummarySlice,
+    statSummaryTierKeys,
+    STAT_SUMMARY_PARTITIONED_KEYS,
+    type PlayerTimeoutAccumulator,
     computeGlickoNumPeriods,
     computeHoursPerStats,
     computeReturningPlayersPerWeek,
@@ -24,8 +45,227 @@ import {
     recordRoundCount,
     recordWasPied,
 } from "./summarizeHelpers.js";
+import type { StatSummary } from "types/stats/StatSummary.js";
+
+const emptyHoursPer = () => ({
+    mean: 0,
+    median: 0,
+    n: 0,
+    winsorizedCount: 0,
+    byWeek: [] as number[],
+});
+
+const minimalStatSummary = (overrides: Partial<StatSummary> = {}): StatSummary => ({
+    numGames: 10,
+    numPlayers: 2,
+    timeoutRate: 0.1,
+    abandonedRate: 0.05,
+    playContext: { casual: 8, event: 2 },
+    pieRates: [],
+    playerCountMix: [],
+    ratings: {
+        highest: [
+            { user: "a", game: "chess", rating: 1500, wld: [5, 3, 1], glicko: toGlickoStats(1500, 80, 0.06, 9) },
+            { user: "b", game: "chess", rating: 1400, wld: [2, 6, 0], glicko: toGlickoStats(1400, 90, 0.06, 8) },
+        ],
+        avg: [{ user: "a", rating: 1500 }, { user: "b", rating: 1400 }],
+        weighted: [{ user: "a", rating: 1500 }, { user: "b", rating: 1400 }],
+        glickoByGame: [
+            { user: "a", game: "chess", glicko: toGlickoStats(1500, 80, 0.06, 9) },
+            { user: "b", game: "chess", glicko: toGlickoStats(1400, 90, 0.06, 8) },
+        ],
+        glickoSite: [],
+        glickoMeta: {
+            establishedRd: 110,
+            provisionalRd: 200,
+            minGamesEstablished: 20,
+            minGamesProvisional: 10,
+            periodMs: 5_184_000_000,
+            generatedAt: "2026-01-01T00:00:00.000Z",
+            counts: { byGame: [], site: { rated: 0, provisional: 0, established: 0 } },
+        },
+    },
+    topPlayers: [],
+    plays: { total: [], width: [] },
+    players: {
+        allPlays: [{ user: "a", value: 5 }, { user: "b", value: 4 }],
+        eclectic: [{ user: "a", value: 2 }],
+        social: [{ user: "a", value: 3 }],
+        h: [{ user: "a", value: 1 }],
+        hOpp: [{ user: "b", value: 2 }],
+        timeoutStats: [{ user: "a", count: 2, latestTimeoutMs: 2_000 }],
+    },
+    histograms: {
+        all: [1, 2],
+        allPlayers: [1, 2],
+        meta: [],
+        players: [{ user: "a", value: [1, 0] }, { user: "b", value: [0, 1] }],
+        playerTimeouts: [{ user: "a", value: [1, 1] }, { user: "b", value: [0, 0] }],
+        firstTimers: [1],
+        returningPlayers: [0, 1],
+        activeMovers: [1, 2],
+        timeouts: [0.1],
+        abandoned: [0.05],
+    },
+    recent: [],
+    hoursPer: emptyHoursPer(),
+    metaStats: {},
+    hMeta: [],
+    geoStats: [],
+    activeGeoStats: [],
+    rivalries: [],
+    seasonality: {
+        movesByDow: Array.from({ length: 7 }, () => 0),
+        playersByDow: Array.from({ length: 7 }, () => 0),
+        movesByHour: Array.from({ length: 24 }, () => 0),
+        windowDays: 365,
+    },
+    ...overrides,
+});
 
 type Moves = APGameRecord["moves"];
+
+describe("recordPlayerTimeout / timeoutStatsFromAccumulator", () => {
+    it("aggregates count and latest timestamp per user", () => {
+        const acc = new Map<string, PlayerTimeoutAccumulator>();
+        recordPlayerTimeout(acc, "a", 1_000);
+        recordPlayerTimeout(acc, "a", 2_500);
+        recordPlayerTimeout(acc, "b", 500);
+        expect(timeoutStatsFromAccumulator(acc)).toEqual([
+            { user: "a", count: 2, latestTimeoutMs: 2_500 },
+            { user: "b", count: 1, latestTimeoutMs: 500 },
+        ]);
+    });
+});
+
+describe("buildPlayerTimeoutHistograms", () => {
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const earliest = 0;
+
+    it("builds weekly buckets per user including zero-filled users", () => {
+        const acc = new Map<string, PlayerTimeoutAccumulator>();
+        recordPlayerTimeout(acc, "a", earliest);
+        recordPlayerTimeout(acc, "a", earliest + weekMs);
+        const hist = buildPlayerTimeoutHistograms(acc, ["a", "b"], earliest);
+        expect(hist).toEqual([
+            { user: "a", value: [1, 1] },
+            { user: "b", value: [] },
+        ]);
+    });
+});
+
+describe("splitStatSummary", () => {
+    it("partitions monolith keys across tiers without overlap", () => {
+        const summary = minimalStatSummary();
+        const generated = "2026-01-02T00:00:00.000Z";
+        const tiers = splitStatSummary(summary, generated);
+        expect(tiers.site.tier).toBe("site");
+        expect(tiers.players.tier).toBe("players");
+        expect(tiers.ratings.tier).toBe("ratings");
+        expect(tiers.site.generated).toBe(generated);
+        expect(tiers.players.players.timeoutStats).toEqual(summary.players.timeoutStats);
+        expect(tiers.ratings.ratings.highest).toEqual(summary.ratings.highest);
+        const tierKeys = statSummaryTierKeys(tiers.site, tiers.players, tiers.ratings);
+        for (const key of STAT_SUMMARY_PARTITIONED_KEYS) {
+            expect(tierKeys.has(key)).toBe(true);
+        }
+        expect(tierKeys.size).toBe(STAT_SUMMARY_PARTITIONED_KEYS.length);
+    });
+});
+
+describe("toPlayerSummarySlice", () => {
+    it("returns only the requested user's rows", () => {
+        const summary = minimalStatSummary();
+        const generated = "2026-01-02T00:00:00.000Z";
+        const indexes = buildPlayerSummaryIndexes(summary);
+        const slice = toPlayerSummarySlice("a", generated, indexes);
+        expect(slice.user).toBe("a");
+        expect(slice.ratings.highest.every((row) => row.user === "a")).toBe(true);
+        expect(slice.players.timeoutCount).toBe(2);
+        expect(slice.players.latestTimeoutMs).toBe(2_000);
+        expect(slice.histograms.players).toEqual([1, 0]);
+        const other = toPlayerSummarySlice("b", generated, indexes);
+        expect(other.ratings.highest.every((row) => row.user === "b")).toBe(true);
+        expect(other.players.timeoutCount).toBeUndefined();
+    });
+
+    it("collects user ids from plays, stats, and ratings", () => {
+        const users = collectPlayerSummaryUserIds(minimalStatSummary());
+        expect(users).toEqual(["a", "b"]);
+    });
+});
+
+describe("toGlickoStats", () => {
+    it("computes rating bounds and dual provisional/established flags", () => {
+        const stats = toGlickoStats(1500, 100, 0.06, 25);
+        expect(stats.ratingLow).toBe(1300);
+        expect(stats.ratingHigh).toBe(1700);
+        expect(stats.provisional).toBe(false);
+        expect(stats.established).toBe(true);
+        expect(stats.n).toBe(25);
+    });
+
+    it("marks low-game-count players provisional", () => {
+        const stats = toGlickoStats(1500, 80, 0.06, 5);
+        expect(stats.provisional).toBe(true);
+        expect(stats.established).toBe(false);
+    });
+
+    it("marks high-RD players provisional even with many games", () => {
+        const stats = toGlickoStats(1500, 250, 0.06, 50);
+        expect(stats.provisional).toBe(true);
+        expect(stats.established).toBe(false);
+    });
+});
+
+describe("isGlickoProvisional / isGlickoEstablished", () => {
+    it("uses AP thresholds from constants", () => {
+        expect(GLICKO_PROVISIONAL_RD).toBe(200);
+        expect(GLICKO_ESTABLISHED_RD).toBe(110);
+        expect(GLICKO_MIN_GAMES_PROVISIONAL).toBe(10);
+        expect(GLICKO_MIN_GAMES_ESTABLISHED).toBe(20);
+        expect(isGlickoProvisional(199, 15)).toBe(false);
+        expect(isGlickoProvisional(201, 15)).toBe(true);
+        expect(isGlickoEstablished(110, 20)).toBe(true);
+        expect(isGlickoEstablished(111, 20)).toBe(false);
+    });
+});
+
+describe("computeGlickoSiteRatings", () => {
+    it("weights composite site rating by games played per meta", () => {
+        const byGame = buildGlickoByGame([
+            { user: "a", game: "chess", glicko: toGlickoStats(1600, 50, 0.06, 10) },
+            { user: "a", game: "go", glicko: toGlickoStats(1400, 100, 0.06, 30) },
+        ]);
+        const site = computeGlickoSiteRatings(byGame);
+        expect(site).toHaveLength(1);
+        const entry = site[0]!;
+        expect(entry.n).toBe(40);
+        expect(entry.ratingLow).toBeCloseTo((1500 * 10 + 1200 * 30) / 40);
+        expect(entry.provisional).toBe(false);
+        expect(entry.established).toBe(true);
+    });
+});
+
+describe("computeGlickoGameCounts / computeGlickoSiteCounts", () => {
+    it("counts provisional and established rows per game and site", () => {
+        const byGame = buildGlickoByGame([
+            { user: "a", game: "chess", glicko: toGlickoStats(1500, 80, 0.06, 25) },
+            { user: "b", game: "chess", glicko: toGlickoStats(1500, 250, 0.06, 5) },
+            { user: "a", game: "go", glicko: toGlickoStats(1500, 80, 0.06, 3) },
+        ]);
+        expect(computeGlickoGameCounts(byGame)).toEqual([
+            { game: "chess", rated: 2, provisional: 1, established: 1 },
+            { game: "go", rated: 1, provisional: 1, established: 0 },
+        ]);
+        const site = computeGlickoSiteRatings(byGame);
+        expect(computeGlickoSiteCounts(site)).toEqual({
+            rated: 2,
+            provisional: 2,
+            established: 1,
+        });
+    });
+});
 
 describe("maxOf", () => {
     it("returns -1 for an empty array", () => {

@@ -1,11 +1,13 @@
 'use strict';
 
-import { S3Client, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, ListObjectsV2Command, type _Object } from "@aws-sdk/client-s3";
 import { Handler } from "aws-lambda";
 import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const deepclone = require("rfdc/default");
+
+import { putRecordsJson } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
@@ -297,30 +299,11 @@ export const handler: Handler = async (event: any, context?: any) => {
         });
     }
 
-    // write files to S3
-    // summary
-    const cmd = new PutObjectCommand({
-        Bucket: REC_BUCKET,
-        Key: "tournament-summary.json",
-        Body: JSON.stringify(finalSummary),
-    });
-    const response = await s3.send(cmd);
-    if (response["$metadata"].httpStatusCode !== 200) {
-        console.log(response);
-    }
+      await putRecordsJson(s3, "tournament-summary.json", finalSummary);
     console.log("Summary data done");
 
-    // individual results
     for (const [player, lst] of individual.entries()) {
-        const cmd = new PutObjectCommand({
-            Bucket: REC_BUCKET,
-            Key: `player/tournaments/${player}.json`,
-            Body: JSON.stringify(lst),
-        });
-        const response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
-        }
+        await putRecordsJson(s3, `player/tournaments/${player}.json`, lst);
     }
     console.log("Individual data done");
 

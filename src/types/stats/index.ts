@@ -1,6 +1,21 @@
 export { UserRating } from "./UserRating.js";
 export { UserGameRating } from "./UserGameRating.js";
+export type {
+    GlickoStats,
+    GlickoByGameRow,
+    GlickoSiteEntry,
+    GlickoGameCounts,
+    GlickoSiteCounts,
+    GlickoMeta,
+} from "./GlickoStats.js";
 export type { StatSummary } from "./StatSummary.js";
+export type {
+    StatSummarySite,
+    StatSummaryPlayers,
+    StatSummaryRatings,
+    PlayerSummarySlice,
+} from "./StatSummaryTiers.js";
+export type { PlayerTimeoutStats } from "./PlayerTimeoutStats.js";
 export { GameNumber } from "./GameNumber.js";
 export { GameNumList } from "./GameNumList.js";
 export { UserNumber } from "./UserNumber.js";

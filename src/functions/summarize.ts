@@ -8,9 +8,19 @@ import { type IRating, type IGlickoRating, APGameRecord, ELOBasic, Glicko2, type
 import { gameinfo, replacer } from "../gameslibRequire.js";
 import type { UserRating, StatSummary, RivalriesFull } from "types/index.js";
 import { alignWeeklyActiveMovers } from "../utils/moveSeasonality.js";
+import { putRecordsJson } from "../utils/recordsJson.js";
 import { UserGameRating, GameNumber, GameNumList, UserNumber, UserNumList, TwoPlayerStats, GeoStats, MetaPieStats, MetaPlayerCountMix, PlayContextStats, SeasonalityStats } from "types/index.js";
 import {
     GLICKO_PERIOD_MS,
+    GLICKO_ESTABLISHED_RD,
+    GLICKO_PROVISIONAL_RD,
+    GLICKO_MIN_GAMES_ESTABLISHED,
+    GLICKO_MIN_GAMES_PROVISIONAL,
+    buildGlickoByGame,
+    computeGlickoSiteRatings,
+    computeGlickoGameCounts,
+    computeGlickoSiteCounts,
+    toGlickoStats,
     computeGlickoNumPeriods,
     computeHoursPerStats,
     computeReturningPlayersPerWeek,
@@ -31,6 +41,11 @@ import {
     recordMoveSlotCount,
     recordRoundCount,
     recordWasPied,
+    recordPlayerTimeout,
+    timeoutStatsFromAccumulator,
+    buildPlayerTimeoutHistograms,
+    splitStatSummary,
+    type PlayerTimeoutAccumulator,
 } from "./summarizeHelpers.js";
 // import { nanoid } from "nanoid";
 
@@ -69,6 +84,10 @@ const pushToMap = (map: Map<string, any[]>, key: string, value: any) => {
     } else {
         map.set(key, [value])
     }
+}
+
+async function putSummaryJson(key: string, body: unknown): Promise<number> {
+    return putRecordsJson(s3, key, body);
 }
 
 function emptyMoveSeasonality(): SeasonalityStats {
@@ -140,7 +159,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         const ratingList: RatingList = [];
         let oldest: string|undefined;
         let newest: string|undefined;
-        const playerTimeouts: UserNumber[] = [];
+        const playerTimeoutAcc = new Map<string, PlayerTimeoutAccumulator>();
         const siteEndFailures: number[] = [];
         const siteClockTimeouts: number[] = [];
         const siteAbandonments: number[] = [];
@@ -189,7 +208,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                 const seatIdx = findTimeoutPlayerSeat(rec.moves, rec.header.players.length);
                 if (seatIdx !== undefined) {
                     const p = rec.header.players[seatIdx];
-                    playerTimeouts.push({user: p.userid!, value: datems});
+                    recordPlayerTimeout(playerTimeoutAcc, p.userid!, datems);
                 }
             }
         }
@@ -447,7 +466,14 @@ export const handler: Handler = async (event: any, context?: any) => {
                         if (elo.recCount !== ts.recCount) {
                             throw new Error(`Rated recCounts do not match for user ${user}:\nElo: ${elo.recCount}\nTrueskill: ${ts.recCount}`);
                         }
-                        rawList.push({user, game: metaName, rating: Math.round(elo.rating), wld: [elo.wins, elo.losses, elo.draws], glicko: {rating: glicko.rating, rd: glicko.rd}, trueskill: {mu: ts.rating, sigma: ts.sigma}});
+                        rawList.push({
+                            user,
+                            game: metaName,
+                            rating: Math.round(elo.rating),
+                            wld: [elo.wins, elo.losses, elo.draws],
+                            glicko: toGlickoStats(glicko.rating, glicko.rd, glicko.volatility, glicko.recCount),
+                            trueskill: { mu: ts.rating, sigma: ts.sigma },
+                        });
                     }
                 }
             }
@@ -477,6 +503,25 @@ export const handler: Handler = async (event: any, context?: any) => {
             const avg = Math.round(sum);
             weightedRatings.push({user: p, rating: avg});
         }
+
+        const glickoByGame = buildGlickoByGame(
+            rawList
+                .filter((row) => row.glicko !== undefined)
+                .map((row) => ({ user: row.user, game: row.game, glicko: row.glicko! })),
+        );
+        const glickoSite = computeGlickoSiteRatings(glickoByGame);
+        const glickoMeta = {
+            establishedRd: GLICKO_ESTABLISHED_RD,
+            provisionalRd: GLICKO_PROVISIONAL_RD,
+            minGamesEstablished: GLICKO_MIN_GAMES_ESTABLISHED,
+            minGamesProvisional: GLICKO_MIN_GAMES_PROVISIONAL,
+            periodMs: GLICKO_PERIOD_MS,
+            generatedAt: new Date().toISOString(),
+            counts: {
+                byGame: computeGlickoGameCounts(glickoByGame),
+                site: computeGlickoSiteCounts(glickoSite),
+            },
+        };
 
         // TOP PLAYERS
         const topPlayers: UserGameRating[] = [];
@@ -624,7 +669,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             histAllPlayers.push(users.size);
         }
 
-        // clock timeouts (site-wide histogram; player histograms use playerTimeouts only)
+        // clock timeouts (site-wide histogram; per-player weekly buckets from timeout accumulator)
         for (const t of siteClockTimeouts) {
             const daysAgo = (t - earliest) / (24 * 60 * 60 * 1000);
             const bucket = Math.floor(daysAgo / 7);
@@ -673,23 +718,14 @@ export const handler: Handler = async (event: any, context?: any) => {
             histPlayers.push({user: userid, value: [...lst]});
         }
 
+        const timeoutStats = timeoutStatsFromAccumulator(playerTimeoutAcc);
+
         // individual player timeouts
-        const histPlayerTimeouts: UserNumList[] = [];
-        for (const userid of (new Set<string>(histListPlayers.map(x => x.user)))) {
-            const toSubset = playerTimeouts.filter(x => x.user === userid);
-            const subset: {bucket: number}[] = [];
-            for (const {value} of toSubset) {
-                const daysAgo = (value - earliest) / (24 * 60 * 60 * 1000);
-                const bucket = Math.floor(daysAgo / 7);
-                subset.push({bucket});
-            }
-            const maxBucket = maxOf(subset.map(x => x.bucket));
-            const lst: number[] = [];
-            for (let i = 0; i <= maxBucket; i++) {
-                lst.push(subset.filter(x => x.bucket === i).length);
-            }
-            histPlayerTimeouts.push({user: userid, value: [...lst]});
-        }
+        const histPlayerTimeouts = buildPlayerTimeoutHistograms(
+            playerTimeoutAcc,
+            new Set<string>(histListPlayers.map((x) => x.user)),
+            earliest,
+        );
 
         // first timers
         const buckets: number[] = [];
@@ -838,6 +874,9 @@ export const handler: Handler = async (event: any, context?: any) => {
                 highest: rawList,
                 avg: avgRatings,
                 weighted: weightedRatings,
+                glickoByGame,
+                glickoSite,
+                glickoMeta,
             },
             topPlayers,
             plays: {
@@ -850,7 +889,7 @@ export const handler: Handler = async (event: any, context?: any) => {
                 social,
                 h,
                 hOpp,
-                timeouts: playerTimeouts,
+                timeoutStats,
             },
             histograms: {
                 all: histAll,
@@ -883,15 +922,17 @@ export const handler: Handler = async (event: any, context?: any) => {
             console.log(opsResponse);
         }
 
-        const cmd = new PutObjectCommand({
-            Bucket: REC_BUCKET,
-            Key: "_summary.json",
-            Body: JSON.stringify(summary),
-        });
-        const response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
-        }
+        const generated = new Date().toISOString();
+        const monolithBytes = await putSummaryJson("_summary.json", summary);
+        console.log(`Wrote _summary.json (${monolithBytes} bytes)`);
+
+        const tiers = splitStatSummary(summary, generated);
+        const siteBytes = await putSummaryJson("_summary-site.json", tiers.site);
+        console.log(`Wrote _summary-site.json (${siteBytes} bytes)`);
+        const playersBytes = await putSummaryJson("_summary-players.json", tiers.players);
+        console.log(`Wrote _summary-players.json (${playersBytes} bytes)`);
+        const ratingsBytes = await putSummaryJson("_summary-ratings.json", tiers.ratings);
+        console.log(`Wrote _summary-ratings.json (${ratingsBytes} bytes)`);
 
         console.log("Analysis complete");
     }
