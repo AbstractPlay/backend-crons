@@ -14,7 +14,8 @@ EventBridge cron expressions use `*` in the day-of-month field (daily). For exam
 | Daily 03:00 | `records`, `records-ttm`, `records-move-times`, `records-cooccur`, `records-rec-analytics`, `layout-feedback-analytics`, `tournament-data` | Latest completed dump in `abstractplay-db-dump` (except `records-rec-analytics` and `layout-feedback-analytics` — live DDB scan) |
 | Daily 04:00 | `records-manifest` | Records batch outputs |
 | Daily 06:00 | `summarize` | `ALL.json` in records bucket |
-| Daily 07:00 | `records-manifest` | Post-summarize refresh |
+| Daily 06:15 | `player-summary-fanout` | Enqueues `player/*-summary.json` writes via SQS |
+| Daily 07:30 | `records-manifest` | Post-summarize + player-slice refresh |
 
 Live crons (`starttournaments`, `standingchallenges`) run on separate daily schedules and query DynamoDB directly — see [Live crons](/crons/live-crons/).
 
@@ -29,7 +30,12 @@ flowchart TD
     layoutfb --> s3ops
     batch --> manifest1["records-manifest daily 04:00"]
     batch --> summarize["summarize daily 06:00"]
-    summarize --> manifest2["records-manifest daily 07:00"]
+    summarize --> fanout["player-summary-fanout daily 06:15"]
+    fanout --> sqs[(SQS)]
+    sqs --> workers["player-summary-worker"]
+    workers --> s3rec
+    fanout --> s3rec
+    fanout --> manifest2["records-manifest daily 07:30"]
     live1["starttournaments 10:00 and 22:00 UTC"] --> ddb[(DynamoDB live)]
     live2["standingchallenges 00:00 and 12:00 UTC"] --> ddb
     dumpdb --> s3dump[(abstractplay-db-dump)]
@@ -86,17 +92,21 @@ Extracts tournament records from the dump and writes `tournament-summary.json` p
 
 ## Step 3: Manifest and CDN (`records-manifest`)
 
-Lists all objects in the records bucket, writes `_manifest.json`, and invalidates the CloudFront distribution (`/*`). Runs twice daily (04:00 and 07:00) so `_summary.json` (from summarize) is included in the second pass.
+Lists all objects in the records bucket, writes `_manifest.json` (v2 schema with `summaryFiles`). Does **not** invalidate CloudFront; see [S3 outputs — caching](/crons/s3-outputs/#cloudfront-and-caching). Runs at **04:00** and **07:30 UTC** so the late pass includes `_summary.json`, tier files, and `player/*-summary.json` from the summarize / fan-out pipeline.
 
 ## Step 4: Summarize (daily 06:00)
 
-Reads `ALL.json`, computes site-wide analytics, writes `_summary.json`. See [Summarize](/crons/summarize/).
+Reads `ALL.json`, computes site-wide analytics, writes `_summary.json` and tier files. See [Summarize](/crons/summarize/).
+
+## Step 5: Player summary fan-out (daily 06:15)
+
+`player-summary-fanout` reads `_summary.json`, enqueues one SQS message per player (slice JSON in the message body), and writes `_summary-player-manifest.json`. `player-summary-worker` Lambdas (SQS-triggered, concurrency 25) write `player/{userId}-summary.json`.
 
 ## Failure and timing
 
 - `dumpdb` starts at 00:00; the 03:00 batch uses the latest **completed** export, which may be from the previous day if today's export is still running
 - If `records` fails, `ALL.json` is stale and `summarize` reflects old data
-- `records-manifest` invalidates CloudFront regardless — clients see whatever is currently in S3
+- `records-manifest` writes `_manifest.json` with current S3 listing — clients see whatever is at the origin after cache revalidation (no blanket invalidation)
 
 ## Related
 

@@ -20,8 +20,10 @@ Defined in [`serverless.yml`](../serverless.yml). Schedules are **daily** unless
 | `records-rec-analytics` | Daily 03:00 | Recommendation impression funnel analytics (ops S3) |
 | `layout-feedback-analytics` | Daily 03:00 | Game Move beta layout feedback analytics (ops S3) |
 | `tournament-data` | Daily 03:00 | Tournament summaries from dump |
-| `records-manifest` | Daily 04:00 and 07:00 | S3 listing + CloudFront invalidation |
+| `records-manifest` | Daily 04:00 and 07:30 | S3 listing + `_manifest.json` v2 |
 | `summarize` | Daily 06:00 | Site analytics from `ALL.json` |
+| `player-summary-fanout` | Daily 06:15 | SQS fan-out for `player/*-summary.json` |
+| `player-summary-worker` | SQS-triggered | Writes one player summary slice per message |
 | `starttournaments` | Daily 10:00 and 22:00 | Start/cancel tournaments, create games |
 | `standingchallenges` | Daily 00:00 and 12:00 | Process preset standing challenges |
 
@@ -53,7 +55,7 @@ flowchart LR
     ddb --> recanalytics[records-rec-analytics]
     recanalytics --> s3ops[(private ops S3)]
     live --> ddb
-    s3rec --> cf[CloudFront invalidation]
+    s3rec --> cf[CloudFront CDN]
 ```
 
 ## IAM permissions
@@ -63,7 +65,7 @@ The service role grants:
 - **DynamoDB** — query/scan/get/put/update/delete, batch write, point-in-time export
 - **S3** — list/get on `abstractplay-db-dump`; put on `records.abstractplay.com` and dump bucket; get/put on private ops bucket (`recommendations/analytics/*`)
 - **SES** — send email (tournament notifications)
-- **CloudFront** — create invalidation on the records distribution
+- **CloudFront** — gzip + cache headers on records CDN (see [S3 outputs](/crons/s3-outputs/#cloudfront-and-caching)); no blanket invalidation
 
 ## Environment
 

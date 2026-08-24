@@ -1,6 +1,6 @@
 'use strict';
 
-import { S3Client, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, ListObjectsV2Command, type _Object } from "@aws-sdk/client-s3";
 import { Handler } from "aws-lambda";
 import { GameFactory } from '@abstractplay/gameslib';
 import { gunzipSync, strFromU8 } from "fflate";
@@ -8,6 +8,7 @@ import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec, type MoveRec } from "types/index.js";
 import { decompressGameState } from "../utils/gameState.js";
 import { computeMoveSeasonality, computeWeeklyActiveMovers, MOVE_SEASONALITY_WINDOW_DAYS } from "../utils/moveSeasonality.js";
+import { putRecordsJson } from "../utils/recordsJson.js";
 import type { SeasonalityStats } from "types/stats/SeasonalityStats.js";
 import type { WeeklyActiveMovers } from "../utils/moveSeasonality.js";
 
@@ -313,15 +314,7 @@ export const handler: Handler = async (event: any, context?: any) => {
 
     // write files to S3
     // response times
-    const cmd = new PutObjectCommand({
-        Bucket: REC_BUCKET,
-        Key: `mvtimes.json`,
-        Body: JSON.stringify(final),
-    });
-    const response = await s3.send(cmd);
-    if (response["$metadata"].httpStatusCode !== 200) {
-        console.log(response);
-    }
+    await putRecordsJson(s3, "mvtimes.json", final);
     console.log("Move times done");
 
     console.log("ALL DONE");

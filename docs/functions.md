@@ -104,11 +104,11 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | | |
 |---|---|
 | **Handler** | `src/functions/records-manifest.ts` |
-| **Schedule** | Daily 04:00 and 07:00 UTC |
+| **Schedule** | Daily 04:00 and 07:30 UTC |
 | **Timeout / memory** | 900 s / 10240 MB |
 | **Layer** | gameslib (attached but no gameslib import) |
 | **Input** | S3 list on records bucket |
-| **Output** | `_manifest.json`; CloudFront invalidation `/*` |
+| **Output** | `_manifest.json` (v2: `summaryFiles` + `objects`); `Cache-Control: no-cache` |
 
 ### `summarize`
 
@@ -116,11 +116,31 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 |---|---|
 | **Handler** | `src/functions/summarize.ts` |
 | **Schedule** | Daily 06:00 UTC |
-| **Timeout / memory** | 120 s / 1024 MB |
+| **Timeout / memory** | 900 s / 1024 MB |
 | **Layer** | gameslib |
 | **Input** | `ALL.json`; `mvtimes.json` (seasonality); live `USERS` query for geo stats |
-| **Output** | `_summary.json` on records bucket; `stats/rivalries.json` on private ops bucket |
+| **Output** | `_summary.json`, `_summary-site.json`, `_summary-players.json`, `_summary-ratings.json`; `stats/rivalries.json` on private ops bucket |
 | **Notes** | See [Summarize](/crons/summarize/) |
+
+### `player-summary-fanout`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/player-summary-fanout.ts` |
+| **Schedule** | Daily 06:15 UTC |
+| **Timeout / memory** | 300 s / 1024 MB |
+| **Input** | `_summary-site.json` (timestamp), `_summary.json` |
+| **Output** | SQS messages (one per player); `_summary-player-manifest.json` |
+
+### `player-summary-worker`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/player-summary-worker.ts` |
+| **Trigger** | SQS (`PlayerSummaryQueue`, batch 5) |
+| **Timeout / memory** | 30 s / 256 MB |
+| **Concurrency** | 25 reserved |
+| **Output** | `player/{userId}-summary.json` |
 
 ## Live functions (DynamoDB)
 

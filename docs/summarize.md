@@ -1,6 +1,6 @@
 # Summarize
 
-The `summarize` Lambda reads `ALL.json` from the records bucket, computes site-wide statistics, and writes `_summary.json`. It also writes full rivalry pair data (with user IDs) to the private ops bucket. It runs **daily at 06:00 UTC** so analytics stay current even mid-week as new games complete.
+The `summarize` Lambda reads `ALL.json` from the records bucket, computes site-wide statistics, and writes summary artifacts to the records bucket. It also writes full rivalry pair data (with user IDs) to the private ops bucket. It runs **daily at 06:00 UTC** so analytics stay current even mid-week as new games complete.
 
 Source: [`src/functions/summarize.ts`](../src/functions/summarize.ts). Pure helpers and unit tests: [`src/functions/summarizeHelpers.ts`](../src/functions/summarizeHelpers.ts), [`summarizeHelpers.test.ts`](../src/functions/summarizeHelpers.test.ts).
 
@@ -14,8 +14,15 @@ Source: [`src/functions/summarize.ts`](../src/functions/summarize.ts). Pure help
 
 | Destination | Key | Content |
 |-------------|-----|---------|
-| Records bucket | `_summary.json` | Public `StatSummary` (see below) |
+| Records bucket | `_summary.json` | Full `StatSummary` monolith (backward compatible) |
+| Records bucket | `_summary-site.json` | Tier 0 — site overview (`StatSummarySite`) |
+| Records bucket | `_summary-players.json` | Tier 1 — per-player bulk (`StatSummaryPlayers`) |
+| Records bucket | `_summary-ratings.json` | Tier 2 — ratings bulk (`StatSummaryRatings`) |
+| Records bucket | `player/{userId}-summary.json` | Per-player slice for profile / quick-picks |
+| Records bucket | `_summary-player-manifest.json` | Fan-out enqueue metadata (`expectedCount`, `generated`) |
 | Private ops bucket | `stats/rivalries.json` | Full rivalry pairs with user IDs |
+
+Per-player slices are written by **`player-summary-fanout`** (daily **06:15 UTC**), which enqueues one SQS message per user; **`player-summary-worker`** performs the S3 puts.
 
 Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/StatSummary.ts). See also [S3 outputs](/crons/s3-outputs/).
 
@@ -30,7 +37,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `playContext` | `{ casual, event }` — games without vs with tournament/org event linkage |
 | `pieRates` | Per meta game: `{ game, n, pied, rate }` where pie is supported |
 | `playerCountMix` | Per meta game supporting 3+ players: `{ game, byCount: { "3": n, … } }` |
-| `ratings` | ELO / Glicko-2 / TrueSkill aggregates (`highest`, `avg`, `weighted`) |
+| `ratings` | ELO / Glicko-2 / TrueSkill aggregates (`highest`, `avg`, `weighted`, `glickoByGame`, `glickoSite`, `glickoMeta`) |
 | `topPlayers` | Top-rated player/game pairs |
 | `plays`, `players` | Game and player activity rankings |
 | `histograms` | Weekly play distributions (see below) |
@@ -75,7 +82,8 @@ Only games with exactly two players and more than two moves are included.
 | `abandonedRate` | Site-wide | Abandonments only |
 | `histograms.timeouts` | Weekly rates | Clock timeouts only |
 | `histograms.abandoned` | Weekly rates | Abandonments only |
-| `players.timeouts` | Per player | Clock timeouts only (not abandonment blame) |
+| `players.timeouts` | Per player | **Removed** — use `players.timeoutStats` (`count`, `latestTimeoutMs`) |
+| `players.timeoutStats` | Per timed-out player | `{ user, count, latestTimeoutMs }` — one row per user with ≥1 clock timeout |
 
 Detection uses `recordHasTimeout` / `recordHasAbandoned` and `findTimeoutPlayerSeat` in [`summarizeHelpers.ts`](../src/functions/summarizeHelpers.ts).
 
@@ -98,16 +106,45 @@ For each meta game (and variant subgroup), runs three rating engines from `@abst
 
 Outputs:
 
-- `ratings.highest` — top raw ratings per user/game
-- `ratings.avg` — simple averages
-- `ratings.weighted` — weighted by games played
+- `ratings.highest` — per user/game rows with Elo (`rating`), W/L/D, full `glicko` (`GlickoStats`), and `trueskill`. **Legacy name** — rows are all rated players, not “highest only”; the enriched **`glicko` object is canonical** for Glicko consumers (use `ratingLow`, `provisional`, etc.).
+- `ratings.avg` — simple Elo averages across metas per user
+- `ratings.weighted` — Elo weighted by games played per user
+- `ratings.glickoByGame` — flat Glicko-only rows: `{ user, game, glicko }` (same pool as `highest`)
+- `ratings.glickoSite` — per-user cross-meta composite: weighted `rating`, `rd`, `ratingLow` / `ratingHigh`, `n`, plus `provisional` / `established` (true if any game row matches)
+- `ratings.glickoMeta` — thresholds, `periodMs`, `generatedAt`, and run counts (`counts.byGame`, `counts.site`)
+
+#### Glicko row shape (`GlickoStats`)
+
+Each `glicko` object on `ratings.highest` and `ratings.glickoByGame`:
+
+| Field | Meaning |
+|-------|---------|
+| `rating`, `rd`, `volatility` | Full Glicko-2 state (μ, φ, σ) |
+| `ratingLow`, `ratingHigh` | `rating ± 2×rd` (95% interval; use `ratingLow` for conservative seeding/sort) |
+| `provisional` | `n < 10` **or** `rd > 200` |
+| `established` | `n >= 20` **and** `rd <= 110` |
+| `n` | Rated games in that meta/variant pool |
+
+`glickoMeta` repeats the threshold constants (`establishedRd`, `provisionalRd`, `minGamesEstablished`, `minGamesProvisional`) so consumers can apply stricter rules without redeploying crons.
+
+### Tiered exports
+
+The monolith remains the full contract. Three tier files are **views** for lazy front-end loading (see [S3 outputs](/crons/s3-outputs/)):
+
+| Tier file | `tier` | Contents |
+|-----------|--------|----------|
+| `_summary-site.json` | `site` | Site aggregates, geo, seasonality, rivalries, `histograms` site keys, `metaStats`, `plays`, `topPlayers` |
+| `_summary-players.json` | `players` | `players.*`, `histograms.players`, `histograms.playerTimeouts` |
+| `_summary-ratings.json` | `ratings` | Full `ratings` object |
+
+Each tier/slice includes `generated` (ISO timestamp). Uploaded with `Content-Type: application/json` and `Cache-Control: public, max-age=0, must-revalidate` (see [S3 outputs — CloudFront and caching](/crons/s3-outputs/#cloudfront-and-caching)).
 
 ### Player rankings (`players`, `topPlayers`)
 
 - **`social`** — players with the most distinct opponents
 - **`eclectic`** — players who played the widest variety of meta games
 - **`allPlays`** — total games played
-- **`timeouts`** — clock-timeout counts with timestamps (not abandonments)
+- **`timeoutStats`** — per-user clock-timeout aggregates (`count`, `latestTimeoutMs`; not abandonments). Weekly charts use `histograms.playerTimeouts`.
 
 ### Histograms (`histograms`)
 

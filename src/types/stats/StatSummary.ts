@@ -13,7 +13,11 @@ import {
     MetaPlayerCountMix,
     AnonymizedRivalry,
     SeasonalityStats,
+    GlickoByGameRow,
+    GlickoSiteEntry,
+    GlickoMeta,
 } from "./index.js";
+import type { PlayerTimeoutStats } from "./PlayerTimeoutStats.js";
 export type StatSummary = {
     numGames: number;
     numPlayers: number;
@@ -28,6 +32,9 @@ export type StatSummary = {
         highest: UserGameRating[];
         avg: UserRating[];
         weighted: UserRating[];
+        glickoByGame: GlickoByGameRow[];
+        glickoSite: GlickoSiteEntry[];
+        glickoMeta: GlickoMeta;
     };
     topPlayers: UserGameRating[];
     plays: {
@@ -40,7 +47,7 @@ export type StatSummary = {
         allPlays: UserNumber[];
         h: UserNumber[];
         hOpp: UserNumber[];
-        timeouts: UserNumber[];
+        timeoutStats: PlayerTimeoutStats[];
     };
     histograms: {
         all: number[];

@@ -1,14 +1,15 @@
 'use strict';
 
-import { S3Client, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, type _Object } from "@aws-sdk/client-s3";
 import { Handler } from "aws-lambda";
+import { REC_BUCKET } from "../constants/recordsBucket.js";
+import { buildRecordsManifest } from "../utils/recordsManifest.js";
+import { putRecordsJson, RECORDS_MANIFEST_CACHE_CONTROL } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
-const REC_BUCKET = "records.abstractplay.com";
 
 export const handler: Handler = async (event: any, context?: any) => {
-    // generate file listing
     const recListCmd = new ListObjectsV2Command({
         Bucket: REC_BUCKET,
     });
@@ -29,18 +30,15 @@ export const handler: Handler = async (event: any, context?: any) => {
         }
     } catch (err) {
         console.error(err);
+        throw err;
     }
-    const cmd = new PutObjectCommand({
-        Bucket: REC_BUCKET,
-        Key: `_manifest.json`,
-        Body: JSON.stringify(recList),
-        CacheControl: "no-cache",
+
+    const generated = new Date().toISOString();
+    const manifest = buildRecordsManifest(recList, generated);
+    await putRecordsJson(s3, "_manifest.json", manifest, {
+        cacheControl: RECORDS_MANIFEST_CACHE_CONTROL,
     });
-    const response = await s3.send(cmd);
-    if (response["$metadata"].httpStatusCode !== 200) {
-        console.log(response);
-    }
-    console.log("Manifest generated");
+    console.log(`Manifest v${manifest.version} generated (${recList.length} objects)`);
 
     console.log("ALL DONE");
 };

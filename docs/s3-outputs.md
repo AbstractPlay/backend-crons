@@ -7,8 +7,13 @@ Static artifacts are published to **`records.abstractplay.com`** (S3 + CloudFron
 | Key pattern | Producer | Description |
 |-------------|----------|-------------|
 | `ALL.json` | `records` | Array of all [`APGameRecord`](/recranks/) objects |
-| `_summary.json` | `summarize` | Site-wide analytics — see [Summarize](/crons/summarize/) |
-| `_manifest.json` | `records-manifest` | S3 object listing (CloudFront cache buster metadata) |
+| `_summary.json` | `summarize` | Full site-wide analytics monolith — see [Summarize](/crons/summarize/) |
+| `_summary-site.json` | `summarize` | Tier 0 site overview (lazy-load bootstrap) |
+| `_summary-players.json` | `summarize` | Tier 1 per-player bulk stats |
+| `_summary-ratings.json` | `summarize` | Tier 2 ratings bulk (Glicko-enriched) |
+| `player/{playerId}-summary.json` | `player-summary-worker` | Per-player summary slice (~few KB) |
+| `_summary-player-manifest.json` | `player-summary-fanout` | Fan-out metadata after enqueue |
+| `_manifest.json` | `records-manifest` | S3 object listing + `summaryFiles` (v2) |
 | `meta/{metaGame}.json` | `records` | Game records filtered by meta game name |
 | `player/{playerId}.json` | `records` | Game records for one player |
 | `event/{eventId}.json` | `records` | Game records for a tournament or org event |
@@ -29,9 +34,21 @@ Key header fields used downstream:
 - `header["date-start"]`, `header["date-end"]` — ISO timestamps
 - `moves` — move history (timeout/abandoned detection in summarize)
 
-## `_summary.json`
+## `_summary.json` and tier files
 
-Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/StatSummary.ts). Top-level fields:
+The **monolith** (`_summary.json`) is typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/StatSummary.ts). Tier types: [`StatSummaryTiers.ts`](../src/types/stats/StatSummaryTiers.ts).
+
+| Key | Type | Role |
+|-----|------|------|
+| `_summary.json` | `StatSummary` | Full superset; backward compatible download / batch consumers |
+| `_summary-site.json` | `StatSummarySite` | Site stats, geo, histograms (site keys), `metaStats`, `plays`, `topPlayers` |
+| `_summary-players.json` | `StatSummaryPlayers` | `players.*` + `histograms.players` / `playerTimeouts` |
+| `_summary-ratings.json` | `StatSummaryRatings` | `ratings.*` including Glicko aggregates |
+| `player/{userId}-summary.json` | `PlayerSummarySlice` | One user's Tier 1/2 subset |
+
+All JSON objects use `Content-Type: application/json`. Each tier/slice includes `generated` (ISO timestamp).
+
+### Monolith top-level fields
 
 | Field | Meaning |
 |-------|---------|
@@ -42,7 +59,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `playContext` | Casual vs tournament/org-event game counts |
 | `pieRates` | Pie invocation rates for supported meta games |
 | `playerCountMix` | Player-count distribution for multi-player metas |
-| `ratings` | ELO/Glicko/Trueskill aggregates (`highest`, `avg`, `weighted`) |
+| `ratings` | ELO/Glicko/Trueskill aggregates (`highest`, `avg`, `weighted`, `glickoByGame`, `glickoSite`, `glickoMeta`) |
 | `topPlayers` | Top-rated player/game pairs |
 | `plays`, `players` | Game and player activity rankings |
 | `histograms` | Play-count distributions, first-timers, returning players, weekly active movers, timeout/abandonment rates |
@@ -102,9 +119,72 @@ AWSDynamoDB/{export-uid}/data/*.ion.gz
 
 Batch functions locate the newest `manifest-summary.json`, extract the UID, and read all `data/*.gz` files for that export.
 
-## CloudFront
+## `_manifest.json` (v2)
 
-`records-manifest` invalidates distribution `EM4FVU08T5188` with path `/*` after updating `_manifest.json`. Clients should use `_manifest.json` or versioned keys rather than hard-coding cache assumptions.
+Typed in [`src/utils/recordsManifest.ts`](../src/utils/recordsManifest.ts). The records bucket manifest is no longer a bare S3 `Contents` array.
+
+```typescript
+{
+  version: 2,
+  generated: string,          // ISO timestamp when manifest was built
+  summaryFiles: {
+    monolith:  { key, lastModified?, size? },
+    site:      { key, lastModified?, size? },
+    players:   { key, lastModified?, size? },
+    ratings:   { key, lastModified?, size? },
+    playerSummaryPattern: "player/{userId}-summary.json",
+    playerManifest: { key: "_summary-player-manifest.json", ... }
+  },
+  objects: _Object[]            // full bucket listing (same data as legacy root array)
+}
+```
+
+**Backward compatibility:** legacy consumers expecting a root array should use `Array.isArray(data) ? data : data.objects`.
+
+`records-manifest` runs at **04:00** and **07:30 UTC** (late pass is after `summarize` at 06:00 and `player-summary-fanout` at 06:15). The handler logs a warning if any required `_summary*.json` tier key is missing from the listing.
+
+## CloudFront and caching
+
+**Distribution:** `EM4FVU08T5188` — `https://records.abstractplay.com`
+
+CloudFront **does not** run blanket `/*` invalidations (removed to avoid quota/cost issues). Freshness relies on S3 object headers set by crons.
+
+### S3 cache headers (all records-bucket JSON)
+
+| Object type | `Cache-Control` | `Content-Type` |
+|-------------|-----------------|----------------|
+| Daily batch JSON (`ALL.json`, `meta/*`, `player/*`, `_summary*.json`, etc.) | `public, max-age=0, must-revalidate` | `application/json` |
+| `_manifest.json` | `no-cache` | `application/json` |
+
+After each daily cron overwrite, the next CDN/browser request revalidates with S3 (`If-None-Match`); changed objects return a new body without invalidation.
+
+Implemented in [`src/utils/recordsJson.ts`](../src/utils/recordsJson.ts) (`putRecordsJson`).
+
+### Gzip compression
+
+CloudFront compresses responses only when the **origin** returns a compressible `Content-Type` (e.g. `application/json`). Objects previously uploaded as `application/octet-stream` were not compressed.
+
+1. **Crons** — set `Content-Type: application/json` on upload (above).
+2. **CloudFront** — enable **Compress objects automatically** on the default cache behavior.
+
+One-time enable (prod credentials):
+
+```bash
+npm run enable-records-cdn-compress
+# preview: npm run enable-records-cdn-compress -- --dry-run
+```
+
+Or in the AWS Console: CloudFront → distribution `EM4FVU08T5188` → **Behaviors** → Edit default → **Compress objects automatically: Yes**.
+
+Verify after deploy + CF propagation:
+
+```bash
+curl.exe -sI -H "Accept-Encoding: gzip" https://records.abstractplay.com/_summary-site.json
+```
+
+Expect `Content-Encoding: gzip` and `Content-Length` much smaller than the uncompressed object.
+
+Clients should use `_manifest.json` `summaryFiles` or tier URLs rather than hard-coding cache assumptions.
 
 ## Related
 

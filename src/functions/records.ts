@@ -1,6 +1,6 @@
 'use strict';
 
-import { S3Client, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, ListObjectsV2Command, type _Object } from "@aws-sdk/client-s3";
 import { Handler } from "aws-lambda";
 import { GameFactory, addResource } from '@abstractplay/gameslib';
 import { type APGameRecord } from '@abstractplay/recranks';
@@ -12,6 +12,7 @@ import type { i18n } from "i18next";
 import { enApgames, enApresults } from "../gameslibLocales.js";
 import enBack from "../locales/en/apback.json";
 import { decompressGameState } from "../utils/gameState.js";
+import { putRecordsJson } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({region: REGION});
@@ -225,54 +226,18 @@ export const handler: Handler = async (event: any, context?: any) => {
     // }
 
     // write files to S3
-    const bodyAll = JSON.stringify(allRecs);
-    let cmd = new PutObjectCommand({
-        Bucket: REC_BUCKET,
-        Key: "ALL.json",
-        Body: bodyAll,
-    });
-    let response = await s3.send(cmd);
-    if (response["$metadata"].httpStatusCode !== 200) {
-        console.log(response);
-    }
+    await putRecordsJson(s3, "ALL.json", allRecs);
     console.log("All records done");
-    // meta games
     for (const [meta, recs] of metaRecs.entries()) {
-        cmd = new PutObjectCommand({
-            Bucket: REC_BUCKET,
-            Key: `meta/${meta}.json`,
-            Body: JSON.stringify(recs),
-        });
-        response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
-        }
+        await putRecordsJson(s3, `meta/${meta}.json`, recs);
     }
     console.log("Meta games done");
-    // players
     for (const [player, recs] of userRecs.entries()) {
-        cmd = new PutObjectCommand({
-            Bucket: REC_BUCKET,
-            Key: `player/${player}.json`,
-            Body: JSON.stringify(recs),
-        });
-        response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
-        }
+        await putRecordsJson(s3, `player/${player}.json`, recs);
     }
     console.log("Player recs done");
-    // events
     for (const [eventid, recs] of eventRecs.entries()) {
-        cmd = new PutObjectCommand({
-            Bucket: REC_BUCKET,
-            Key: `event/${eventid}.json`,
-            Body: JSON.stringify(recs),
-        });
-        response = await s3.send(cmd);
-        if (response["$metadata"].httpStatusCode !== 200) {
-            console.log(response);
-        }
+        await putRecordsJson(s3, `event/${eventid}.json`, recs);
     }
     console.log("Event recs done");
 

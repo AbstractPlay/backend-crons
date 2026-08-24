@@ -11,6 +11,7 @@
     "build": "eslint",
     "build:layers": "node scripts/build-layers.cjs",
     "run-records-pipeline": "node bin/run-records-pipeline.mjs",
+    "enable-records-cdn-compress": "node bin/enable-records-cdn-compress.mjs",
     "deploy-dev": "serverless deploy",
     "deploy-prod": "serverless --stage prod deploy",
     "full-dev": "npm run clean && npm run build && serverless deploy",
@@ -28,12 +29,13 @@
   },
   "homepage": "https://github.com/AbstractPlay/backend-crons#readme",
   "dependencies": {
-    "@abstractplay/gameslib": "1.0.0-ci-30756123354.0",
-    "@abstractplay/recranks": "^1.0.0-ci-31646933950.0",
-    "@abstractplay/renderer": "1.0.0-ci-30510386936.0",
+    "@abstractplay/gameslib": "1.0.0-ci-32610884474.0",
+    "@abstractplay/recranks": "1.0.0-ci-32677322618.0",
+    "@abstractplay/renderer": "1.0.0-ci-32607139963.0",
     "@aws-sdk/client-dynamodb": "^3.321.1",
     "@aws-sdk/client-s3": "^3.374.0",
     "@aws-sdk/client-ses": "^3.321.1",
+    "@aws-sdk/client-sqs": "^3.374.0",
     "@aws-sdk/lib-dynamodb": "^3.321.1",
     "aws-lambda": "^1.0.7",
     "fflate": "^0.8.1",
@@ -41,6 +43,7 @@
     "ion-js": "^5.2.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudfront": "^3.374.0",
     "@aws-sdk/types": "^3.310.0",
     "@types/aws-lambda": "^8.10.115",
     "@types/node": "^20.19.0",
@@ -62,6 +65,6 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "@abstractplay/renderer": "1.0.0-ci-30510386936.0"
+    "@abstractplay/renderer": "1.0.0-ci-32607139963.0"
   }
 }

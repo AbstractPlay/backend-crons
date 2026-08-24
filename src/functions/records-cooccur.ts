@@ -1,6 +1,6 @@
 'use strict';
 
-import { S3Client, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, ListObjectsV2Command, type _Object } from "@aws-sdk/client-s3";
 import { Handler } from "aws-lambda";
 import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
@@ -10,6 +10,7 @@ import {
     DEFAULT_MIN_COOCCURRENCE,
     unionCoPlaySet,
 } from "../utils/cooccurPmi.js";
+import { putRecordsJson } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({ region: REGION });
@@ -151,16 +152,7 @@ export const handler: Handler = async () => {
         generatedAt: new Date().toISOString(),
     });
 
-    const cmd = new PutObjectCommand({
-        Bucket: REC_BUCKET,
-        Key: COOCCUR_KEY,
-        Body: JSON.stringify(artifact),
-        CacheControl: "no-cache",
-    });
-    const response = await s3.send(cmd);
-    if (response["$metadata"].httpStatusCode !== 200) {
-        console.log(response);
-    }
+    await putRecordsJson(s3, COOCCUR_KEY, artifact);
     console.log(`Wrote ${COOCCUR_KEY} (${Object.keys(artifact.games).length} games with PMI neighbors)`);
     console.log("ALL DONE");
 };
