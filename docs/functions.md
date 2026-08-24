@@ -168,6 +168,18 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Output** | Issues standing challenge requests in DynamoDB |
 | **Notes** | See [Live crons](/crons/live-crons/) |
 
+### `dashboard-cruft-cleanup`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/dashboard-cruft-cleanup.ts` |
+| **Schedule** | Daily 03:00 UTC |
+| **Timeout / memory** | 900 s / 1024 MB |
+| **Layer** | No |
+| **Input** | Latest ION dump (`USER` candidates) + live DynamoDB confirm |
+| **Output** | Deletes stale `RECENTCOMPLETED#` / orphan `USERGAME#`; sets `USER.cleaned` |
+| **Notes** | See [Dashboard cruft cleanup](/crons/dashboard-cruft-cleanup/) |
+
 ## Related
 
 - [Records pipeline](/crons/pipeline/)

@@ -1,6 +1,15 @@
 # Live crons
 
-Two functions operate on **live DynamoDB** rather than the daily S3 dump. They run on prod schedules and mutate game/tournament/challenge state directly.
+Functions that operate on **live DynamoDB** rather than only writing static artifacts. Most run on prod schedules and mutate data directly.
+
+## `dashboard-cruft-cleanup`
+
+**Schedule:** 03:00 UTC daily  
+**Source:** [`src/functions/dashboard-cruft-cleanup.ts`](../src/functions/dashboard-cruft-cleanup.ts)
+
+Prunes stale dashboard index cruft (`RECENTCOMPLETED#`, orphan `USERGAME#`) for users inactive ≥ 1 year. Candidates come from the daily S3 ION dump; each user is confirmed live before cleanup. Sets `USER.cleaned = true` (cleared on `me()` login in node-backend).
+
+See [Dashboard cruft cleanup](/crons/dashboard-cruft-cleanup/) for full detail.
 
 ## `starttournaments`
 
@@ -57,6 +66,7 @@ Queries `REALSTANDING` and related user/challenge records. Does not use gameslib
 Both functions deploy to dev stacks but **EventBridge schedules are disabled on dev**. Test by invoking manually:
 
 ```bash
+serverless invoke -f dashboard-cruft-cleanup --stage prod
 serverless invoke -f starttournaments --stage prod
 serverless invoke -f standingchallenges --stage prod
 ```
