@@ -116,7 +116,7 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 |---|---|
 | **Handler** | `src/functions/summarize.ts` |
 | **Schedule** | Daily 06:00 UTC |
-| **Timeout / memory** | 900 s / 1024 MB |
+| **Timeout / memory** | 900 s / 5120 MB |
 | **Layer** | gameslib |
 | **Input** | `ALL.json`; `mvtimes.json` (seasonality); live `USERS` query for geo stats |
 | **Output** | `_summary.json`, `_summary-site.json`, `_summary-players.json`, `_summary-ratings.json`; `stats/rivalries.json` on private ops bucket |

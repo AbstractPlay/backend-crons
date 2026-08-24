@@ -235,6 +235,7 @@ functions:
     handler: src/functions/summarize.handler
     description: Summarize generated game reports
     timeout: 900
+    memorySize: 5120
     layers:
       - !Ref AbstractplayGameslibLambdaLayer
     logRetentionInDays: 30
