@@ -7,6 +7,7 @@ import {
   DynamoDBDocumentClient,
   QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
+import { removeDashboardGameMembership } from './dashboardEviction.js';
 
 const COMPLETED_DASHBOARD_RETENTION_MS = 7 * 24 * 3600000;
 
@@ -142,13 +143,15 @@ export async function cleanupUserDashboardCruft(
       eligibleRecentIds.add(row.sk);
       continue;
     }
-    await Promise.all([
-      deleteRow(client, tableName, `RECENTCOMPLETED#${userId}`, row.sk),
-      deleteRow(client, tableName, `USERGAME#${userId}`, row.sk),
-    ]);
+    const evicted = await removeDashboardGameMembership(
+      client,
+      tableName,
+      userId,
+      [row.sk],
+    );
     overlays.delete(row.sk);
-    recentCompletedDeleted += 1;
-    userGameDeleted += 1;
+    recentCompletedDeleted += evicted.recentCompletedDeleted;
+    userGameDeleted += evicted.userGameDeleted;
   }
 
   const dashboardIds = new Set([...currentIds, ...eligibleRecentIds]);
