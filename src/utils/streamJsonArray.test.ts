@@ -1,22 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Readable } from "node:stream";
-import { chain } from "stream-chain";
-import { parser } from "stream-json";
-import { streamArray } from "stream-json/streamers/StreamArray.js";
-
-async function streamJsonArrayFromReadable<T>(
-    readable: Readable,
-    onItem: (item: T) => void,
-): Promise<number> {
-    const pipeline = chain([readable, parser(), streamArray()]);
-    let count = 0;
-    for await (const chunk of pipeline) {
-        const row = chunk as unknown as { value: T };
-        onItem(row.value);
-        count++;
-    }
-    return count;
-}
+import { streamJsonArrayFromReadable } from "./streamJsonArray.js";
 
 describe("streamJsonArray", () => {
     it("yields each array element without JSON.parse on the full buffer", async () => {

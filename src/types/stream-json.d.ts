@@ -1,11 +1,9 @@
-declare module "stream-chain" {
-    export function chain(streams: unknown[]): NodeJS.ReadableStream;
-}
-
 declare module "stream-json" {
-    export function parser(): NodeJS.ReadWriteStream;
+    import type { Transform } from "node:stream";
+    export function parser(): Transform;
 }
 
 declare module "stream-json/streamers/StreamArray.js" {
-    export function streamArray(): NodeJS.ReadWriteStream;
+    import type { Transform } from "node:stream";
+    export function streamArray(): Transform;
 }
