@@ -17,6 +17,7 @@ import type {
 import type { UserGameRating } from "types/stats/UserGameRating.js";
 import type { UserNumList } from "types/stats/UserNumList.js";
 import type { UserNumber } from "types/stats/UserNumber.js";
+import type { TwoPlayerStats } from "types/stats/TwoPlayerStats.js";
 
 export const GLICKO_PERIOD_MS = 60 * 24 * 60 * 60 * 1000;
 
@@ -336,24 +337,39 @@ export function computeRivalryPairs(
 ): RivalryPairResult[] {
     const counts = new Map<string, RivalryPairResult>();
     for (const rec of recs) {
-        if (rec.header.players.length !== 2) {
-            continue;
-        }
-        const p0 = rec.header.players[0].userid;
-        const p1 = rec.header.players[1].userid;
-        if (p0 === undefined || p1 === undefined) {
-            continue;
-        }
-        const userA = p0 < p1 ? p0 : p1;
-        const userB = p0 < p1 ? p1 : p0;
-        const key = pairKey(userA, userB);
-        const existing = counts.get(key);
-        if (existing === undefined) {
-            counts.set(key, { userA, userB, n: 1 });
-        } else {
-            existing.n++;
-        }
+        accumulateRivalryPair(counts, rec);
     }
+    return finalizeRivalryPairs(counts, minGames, topN);
+}
+
+export function accumulateRivalryPair(
+    counts: Map<string, RivalryPairResult>,
+    rec: APGameRecord,
+): void {
+    if (rec.header.players.length !== 2) {
+        return;
+    }
+    const p0 = rec.header.players[0].userid;
+    const p1 = rec.header.players[1].userid;
+    if (p0 === undefined || p1 === undefined) {
+        return;
+    }
+    const userA = p0 < p1 ? p0 : p1;
+    const userB = p0 < p1 ? p1 : p0;
+    const key = pairKey(userA, userB);
+    const existing = counts.get(key);
+    if (existing === undefined) {
+        counts.set(key, { userA, userB, n: 1 });
+    } else {
+        existing.n++;
+    }
+}
+
+export function finalizeRivalryPairs(
+    counts: Map<string, RivalryPairResult>,
+    minGames: number = RIVALRY_MIN_GAMES,
+    topN?: number,
+): RivalryPairResult[] {
     const sorted = [...counts.values()]
         .filter((p) => p.n >= minGames)
         .sort((a, b) => b.n - a.n || a.userA.localeCompare(b.userA) || a.userB.localeCompare(b.userB));
@@ -448,6 +464,68 @@ export function recordRoundCount(rec: APGameRecord): number {
         return rec.moves?.length ?? 0;
     }
     return rec.moves.filter((round) => roundHasRealMove(round)).length;
+}
+
+export function sortVariants(rec: APGameRecord): string {
+    if (rec.header.game.variants !== undefined && rec.header.game.variants.length > 0) {
+        const lst = [...rec.header.game.variants];
+        lst.sort();
+        return lst.join("|");
+    }
+    return "";
+}
+
+export function calcTwoPlayerStats(recs: APGameRecord[]): TwoPlayerStats | undefined {
+    let n = 0;
+    let fpWins = 0;
+    let draws = 0;
+    const lengths: number[] = [];
+    for (const rec of recs) {
+        if (rec.header.players.length === 2 && recordRoundCount(rec) > 2) {
+            n++;
+            lengths.push(recordRoundCount(rec));
+            if (rec.header.players[0].result > rec.header.players[1].result) {
+                fpWins++;
+            } else if (rec.header.players[0].result === rec.header.players[1].result) {
+                fpWins += 0.5;
+                draws++;
+            }
+        }
+    }
+    if (n === 0) {
+        return undefined;
+    }
+    const wins = fpWins / n;
+    const sum = lengths.reduce((prev, curr) => prev + curr, 0);
+    const avg = sum / lengths.length;
+    lengths.sort((a, b) => a - b);
+    let median: number;
+    if (lengths.length % 2 === 0) {
+        const rightIdx = lengths.length / 2;
+        const leftIdx = rightIdx - 1;
+        median = (lengths[leftIdx] + lengths[rightIdx]) / 2;
+    } else {
+        median = lengths[Math.floor(lengths.length / 2)];
+    }
+    return {
+        n,
+        lenAvg: avg,
+        lenMedian: median,
+        winsFirst: wins,
+        drawRate: draws / n,
+    };
+}
+
+export function hIndexFromCounts(counts: Iterable<number>): number {
+    const sorted = [...counts].sort((a, b) => b - a);
+    let index = sorted.length;
+    for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i]! < i + 1) {
+            index = i;
+            break;
+        }
+    }
+    return index;
 }
 
 /** Total move slots for hours-per-move — legacy sum of round widths when no header. */
@@ -745,8 +823,8 @@ export function buildPlayerSummaryIndexes(summary: StatSummary): PlayerSummaryIn
         highest,
         glickoByGame,
         glickoSite: new Map(summary.ratings.glickoSite.map((row) => [row.user, row])),
-        avg: userNumberMap(summary.ratings.avg),
-        weighted: userNumberMap(summary.ratings.weighted),
+        avg: new Map(summary.ratings.avg.map((row) => [row.user, row.rating])),
+        weighted: new Map(summary.ratings.weighted.map((row) => [row.user, row.rating])),
     };
 }
 
