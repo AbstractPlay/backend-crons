@@ -27,6 +27,8 @@ custom:
       - "@smithy/*"
       - "buffer"
       - "fs"
+      - "stream-json"
+      - "stream-chain"
     exclude:
       - "@abstractplay/gameslib"
       - "@abstractplay/recranks"
