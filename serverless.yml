@@ -183,6 +183,23 @@ functions:
           # 3am UTC daily (uses latest completed dump by LastModified)
           schedule: cron(0 3 * * ? *)
 
+  dashboard-cruft-cleanup:
+    handler: src/functions/dashboard-cruft-cleanup.handler
+    description: Prunes stale dashboard index cruft for long-inactive users (S3 dump candidates + live DDB confirm)
+    timeout: 900
+    memorySize: 1024
+    logRetentionInDays: 30
+    environment:
+      DASHBOARD_CRUFT_BATCH_SIZE: 75
+      ABANDONED_ACCOUNT_INACTIVE_MS: 31536000000
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-dashboard-cruft-cleanup
+          description: Daily abandoned-account dashboard cruft cleanup
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 3am UTC daily (after dumpdb export; uses latest completed ION dump for candidates)
+          schedule: cron(0 3 * * ? *)
+
   records-rec-analytics:
     handler: src/functions/records-rec-analytics.handler
     description: Aggregates recommendation impression events to private ops S3
