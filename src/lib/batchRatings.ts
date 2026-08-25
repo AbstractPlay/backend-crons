@@ -7,6 +7,32 @@ import {
     toGlickoStats,
 } from "../functions/summarizeHelpers.js";
 
+export const GLICKO_PRIOR_RATING_LOW = GLICKO_RATING_START - 2 * GLICKO_RD_START;
+
+export function glickoConservativeSortKey(row: UserGameRating): number {
+    return row.glicko?.ratingLow ?? GLICKO_PRIOR_RATING_LOW;
+}
+
+export type TournamentSeedPlayer = {
+    playerid: string;
+    rating?: number;
+    score?: number;
+};
+
+/** Assign batch Glicko conservative sort keys for tournament division seeding. */
+export function assignTournamentPlayerRatings(
+    players: TournamentSeedPlayer[],
+    highest: UserGameRating[],
+    displayName: string,
+    variants: string[],
+): void {
+    for (const player of players) {
+        const row = lookupBatchRating(highest, displayName, variants, player.playerid);
+        player.rating = glickoConservativeSortKey(row);
+        player.score = 0;
+    }
+}
+
 /** Display name + variant UIDs → summarize `highest[].game` key. */
 export function batchRatingGameLabel(displayName: string, variants: string[]): string {
     if (variants.length === 0) {
