@@ -282,6 +282,20 @@ functions:
           # 6:15am UTC daily (after summarize at 6:00)
           schedule: cron(15 6 * * ? *)
 
+  rating-change-notifications:
+    handler: src/functions/rating-change-notifications.handler
+    description: Batch ratingChange in-app notifications after summarize Glicko update
+    timeout: 300
+    memorySize: 1024
+    logRetentionInDays: 30
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-rating-change-notifications
+          description: Diff batch Glicko ratings and enqueue ratingChange notifications
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 6:20am UTC daily (after summarize at 6:00 and player-summary-fanout at 6:15)
+          schedule: cron(20 6 * * ? *)
+
   player-summary-worker:
     handler: src/functions/player-summary-worker.handler
     description: Writes one player summary slice per SQS message

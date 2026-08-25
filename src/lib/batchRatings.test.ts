@@ -9,6 +9,7 @@ import {
     compareBatchRatings,
     defaultGlickoPrior,
     lookupBatchRating,
+    parseBatchRatingGameLabel,
 } from "./batchRatings.js";
 import { GLICKO_RATING_START, GLICKO_RD_START } from "../functions/summarizeHelpers.js";
 
@@ -24,6 +25,30 @@ describe("batchRatingGameLabel", () => {
 
     it("labels sorted variant UIDs", () => {
         expect(batchRatingGameLabel("go", ["handicap", "9x9"])).toBe("go (9x9|handicap)");
+    });
+});
+
+describe("parseBatchRatingGameLabel", () => {
+    it("parses no variants", () => {
+        expect(parseBatchRatingGameLabel("chess (no variants)")).toEqual({
+            metaUid: "chess",
+            variantUids: [],
+        });
+    });
+
+    it("parses variant UIDs", () => {
+        expect(parseBatchRatingGameLabel("go (9x9|handicap)")).toEqual({
+            metaUid: "go",
+            variantUids: ["9x9", "handicap"],
+        });
+    });
+
+    it("round-trips batchRatingGameLabel", () => {
+        const label = batchRatingGameLabel("go", ["handicap", "9x9"]);
+        expect(parseBatchRatingGameLabel(label)).toEqual({
+            metaUid: "go",
+            variantUids: ["9x9", "handicap"],
+        });
     });
 });
 
