@@ -90,6 +90,22 @@ export function metaUidFromRatingGameLabel(game: string): string {
     return paren === -1 ? game : game.slice(0, paren);
 }
 
+const NO_VARIANTS_SUFFIX = "no variants";
+
+/** Parse `batchRatingGameLabel` output into meta UID + variant UIDs. */
+export function parseBatchRatingGameLabel(gameLabel: string): { metaUid: string; variantUids: string[] } {
+    const metaUid = metaUidFromRatingGameLabel(gameLabel);
+    const paren = gameLabel.indexOf(" (");
+    if (paren === -1) {
+        return { metaUid, variantUids: [] };
+    }
+    const inner = gameLabel.endsWith(")") ? gameLabel.slice(paren + 2, -1) : "";
+    if (inner === NO_VARIANTS_SUFFIX) {
+        return { metaUid, variantUids: [] };
+    }
+    return { metaUid, variantUids: inner ? inner.split("|") : [] };
+}
+
 /** Distinct rated users per meta UID from `highest[]` game labels. */
 export function buildPlayerCountsByUid(highest: UserGameRating[]): Record<string, number> {
     const usersByUid = new Map<string, Set<string>>();
