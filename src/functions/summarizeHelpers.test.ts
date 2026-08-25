@@ -18,7 +18,9 @@ import {
     buildPlayerTimeoutHistograms,
     splitStatSummary,
     buildPlayerSummaryIndexes,
+    buildPlayerSummaryIndexesFromTiers,
     collectPlayerSummaryUserIds,
+    collectPlayerSummaryUserIdsFromTiers,
     toPlayerSummarySlice,
     statSummaryTierKeys,
     STAT_SUMMARY_PARTITIONED_KEYS,
@@ -193,6 +195,20 @@ describe("toPlayerSummarySlice", () => {
     it("collects user ids from plays, stats, and ratings", () => {
         const users = collectPlayerSummaryUserIds(minimalStatSummary());
         expect(users).toEqual(["a", "b"]);
+    });
+
+    it("tier-based helpers match monolith-based helpers", () => {
+        const summary = minimalStatSummary();
+        const generated = "2026-01-02T00:00:00.000Z";
+        const tiers = splitStatSummary(summary, generated);
+        const monolithIndexes = buildPlayerSummaryIndexes(summary);
+        const tierIndexes = buildPlayerSummaryIndexesFromTiers(tiers.players, tiers.ratings);
+        expect(collectPlayerSummaryUserIdsFromTiers(tiers.players, tiers.ratings))
+            .toEqual(collectPlayerSummaryUserIds(summary));
+        for (const user of ["a", "b"]) {
+            expect(toPlayerSummarySlice(user, generated, tierIndexes))
+                .toEqual(toPlayerSummarySlice(user, generated, monolithIndexes));
+        }
     });
 });
 

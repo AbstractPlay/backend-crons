@@ -795,9 +795,12 @@ export type PlayerSummaryIndexes = {
     weighted: Map<string, number>;
 };
 
-export function buildPlayerSummaryIndexes(summary: StatSummary): PlayerSummaryIndexes {
+export function buildPlayerSummaryIndexesFromTiers(
+    playersTier: StatSummaryPlayers,
+    ratingsTier: StatSummaryRatings,
+): PlayerSummaryIndexes {
     const highest = new Map<string, UserGameRating[]>();
-    for (const row of summary.ratings.highest) {
+    for (const row of ratingsTier.ratings.highest) {
         const list = highest.get(row.user);
         if (list === undefined) {
             highest.set(row.user, [row]);
@@ -806,7 +809,7 @@ export function buildPlayerSummaryIndexes(summary: StatSummary): PlayerSummaryIn
         }
     }
     const glickoByGame = new Map<string, GlickoByGameRow[]>();
-    for (const row of summary.ratings.glickoByGame) {
+    for (const row of ratingsTier.ratings.glickoByGame) {
         const list = glickoByGame.get(row.user);
         if (list === undefined) {
             glickoByGame.set(row.user, [row]);
@@ -815,46 +818,87 @@ export function buildPlayerSummaryIndexes(summary: StatSummary): PlayerSummaryIn
         }
     }
     return {
-        allPlays: userNumberMap(summary.players.allPlays),
-        eclectic: userNumberMap(summary.players.eclectic),
-        social: userNumberMap(summary.players.social),
-        h: userNumberMap(summary.players.h),
-        hOpp: userNumberMap(summary.players.hOpp),
-        timeoutStats: new Map(summary.players.timeoutStats.map((row) => [row.user, row])),
-        histPlayers: new Map(summary.histograms.players.map((row) => [row.user, row.value])),
-        histPlayerTimeouts: new Map(summary.histograms.playerTimeouts.map((row) => [row.user, row.value])),
+        allPlays: userNumberMap(playersTier.players.allPlays),
+        eclectic: userNumberMap(playersTier.players.eclectic),
+        social: userNumberMap(playersTier.players.social),
+        h: userNumberMap(playersTier.players.h),
+        hOpp: userNumberMap(playersTier.players.hOpp),
+        timeoutStats: new Map(playersTier.players.timeoutStats.map((row) => [row.user, row])),
+        histPlayers: new Map(playersTier.histograms.players.map((row) => [row.user, row.value])),
+        histPlayerTimeouts: new Map(playersTier.histograms.playerTimeouts.map((row) => [row.user, row.value])),
         highest,
         glickoByGame,
-        glickoSite: new Map(summary.ratings.glickoSite.map((row) => [row.user, row])),
-        avg: new Map(summary.ratings.avg.map((row) => [row.user, row.rating])),
-        weighted: new Map(summary.ratings.weighted.map((row) => [row.user, row.rating])),
+        glickoSite: new Map(ratingsTier.ratings.glickoSite.map((row) => [row.user, row])),
+        avg: new Map(ratingsTier.ratings.avg.map((row) => [row.user, row.rating])),
+        weighted: new Map(ratingsTier.ratings.weighted.map((row) => [row.user, row.rating])),
     };
 }
 
-export function collectPlayerSummaryUserIds(summary: StatSummary): string[] {
+export function buildPlayerSummaryIndexes(summary: StatSummary): PlayerSummaryIndexes {
+    return buildPlayerSummaryIndexesFromTiers(
+        {
+            generated: "",
+            tier: "players",
+            players: summary.players,
+            histograms: {
+                players: summary.histograms.players,
+                playerTimeouts: summary.histograms.playerTimeouts,
+            },
+        },
+        {
+            generated: "",
+            tier: "ratings",
+            ratings: summary.ratings,
+        },
+    );
+}
+
+export function collectPlayerSummaryUserIdsFromTiers(
+    playersTier: StatSummaryPlayers,
+    ratingsTier: StatSummaryRatings,
+): string[] {
     const users = new Set<string>();
-    for (const row of summary.players.allPlays) {
+    for (const row of playersTier.players.allPlays) {
         users.add(row.user);
     }
-    for (const row of summary.players.eclectic) {
+    for (const row of playersTier.players.eclectic) {
         users.add(row.user);
     }
-    for (const row of summary.players.social) {
+    for (const row of playersTier.players.social) {
         users.add(row.user);
     }
-    for (const row of summary.players.h) {
+    for (const row of playersTier.players.h) {
         users.add(row.user);
     }
-    for (const row of summary.players.hOpp) {
+    for (const row of playersTier.players.hOpp) {
         users.add(row.user);
     }
-    for (const row of summary.players.timeoutStats) {
+    for (const row of playersTier.players.timeoutStats) {
         users.add(row.user);
     }
-    for (const row of summary.ratings.highest) {
+    for (const row of ratingsTier.ratings.highest) {
         users.add(row.user);
     }
     return [...users].sort((a, b) => a.localeCompare(b));
+}
+
+export function collectPlayerSummaryUserIds(summary: StatSummary): string[] {
+    return collectPlayerSummaryUserIdsFromTiers(
+        {
+            generated: "",
+            tier: "players",
+            players: summary.players,
+            histograms: {
+                players: summary.histograms.players,
+                playerTimeouts: summary.histograms.playerTimeouts,
+            },
+        },
+        {
+            generated: "",
+            tier: "ratings",
+            ratings: summary.ratings,
+        },
+    );
 }
 
 export function toPlayerSummarySlice(
