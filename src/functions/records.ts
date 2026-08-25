@@ -12,6 +12,7 @@ import type { i18n } from "i18next";
 import { enApgames, enApresults } from "../gameslibLocales.js";
 import enBack from "../locales/en/apback.json";
 import { decompressGameState } from "../utils/gameState.js";
+import { encodeRecordGameId } from "../utils/recordGameId.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
@@ -183,8 +184,9 @@ export const handler: Handler = async (event: any, context?: any) => {
                 console.log(`Could not find a matching event records for game record "${gdata.sk}".`)
             }
         }
+        const variantUids = g.variants ?? (gdata.variants as string[] | undefined) ?? [];
         const rec = g.genRecord({
-            uid: `${g.metaGame}#${gdata.id}`,
+            uid: encodeRecordGameId(gdata.id, gdata.metaGame, variantUids),
             players: gdata.players.map(p => ({
                 uid: p.id,
                 name: p.name,

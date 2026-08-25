@@ -20,7 +20,7 @@ describe("assignTournamentPlayerRatings", () => {
             { playerid: "alice", playername: "Alice" },
             { playerid: "unknown", playername: "Unknown" },
         ];
-        assignTournamentPlayerRatings(players, fixture.highest, "Chess", []);
+        assignTournamentPlayerRatings(players, fixture.highest, "chess", []);
         players.sort((a, b) => b.rating! - a.rating!);
         expect(players.map((p) => p.playerid)).toEqual(["alice", "bob", "unknown"]);
         expect(players[0]!.rating).toBe(1200);
@@ -33,7 +33,7 @@ describe("assignTournamentPlayerRatings", () => {
             { playerid: "carol" },
             { playerid: "alice" },
         ];
-        assignTournamentPlayerRatings(players, fixture.highest, "Go", ["handicap", "9x9"]);
+        assignTournamentPlayerRatings(players, fixture.highest, "go", ["handicap", "9x9"]);
         players.sort((a, b) => b.rating! - a.rating!);
         expect(players[0]!.playerid).toBe("alice");
         expect(players[0]!.rating).toBe(1200);

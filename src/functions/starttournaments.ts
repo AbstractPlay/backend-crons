@@ -474,11 +474,10 @@ async function startTournament(users: UserLastSeen[], tournament: Tournament, ra
     const clockStart = 72;
     const clockInc = 36;
     const clockMax = 120;
-    const metaGameName = gameinfo.get(tournament.metaGame)?.name ?? tournament.metaGame;
     assignTournamentPlayerRatings(
       players,
       ratingsHighest,
-      metaGameName,
+      tournament.metaGame,
       tournament.variants ?? [],
     );
     players.sort((a, b) => b.rating! - a.rating!);

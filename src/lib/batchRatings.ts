@@ -23,23 +23,23 @@ export type TournamentSeedPlayer = {
 export function assignTournamentPlayerRatings(
     players: TournamentSeedPlayer[],
     highest: UserGameRating[],
-    displayName: string,
+    metaUid: string,
     variants: string[],
 ): void {
     for (const player of players) {
-        const row = lookupBatchRating(highest, displayName, variants, player.playerid);
+        const row = lookupBatchRating(highest, metaUid, variants, player.playerid);
         player.rating = glickoConservativeSortKey(row);
         player.score = 0;
     }
 }
 
-/** Display name + variant UIDs → summarize `highest[].game` key. */
-export function batchRatingGameLabel(displayName: string, variants: string[]): string {
+/** Meta UID + variant UIDs → summarize `highest[].game` key. */
+export function batchRatingGameLabel(metaUid: string, variants: string[]): string {
     if (variants.length === 0) {
-        return `${displayName} (no variants)`;
+        return `${metaUid} (no variants)`;
     }
     const sorted = [...variants].sort();
-    return `${displayName} (${sorted.join("|")})`;
+    return `${metaUid} (${sorted.join("|")})`;
 }
 
 export function defaultGlickoPrior(): GlickoStats {
@@ -48,11 +48,11 @@ export function defaultGlickoPrior(): GlickoStats {
 
 export function lookupBatchRating(
     highest: UserGameRating[],
-    displayName: string,
+    metaUid: string,
     variants: string[],
     userId: string,
 ): UserGameRating {
-    const game = batchRatingGameLabel(displayName, variants);
+    const game = batchRatingGameLabel(metaUid, variants);
     const row = highest.find((r) => r.user === userId && r.game === game);
     if (row !== undefined) {
         return row;
@@ -84,19 +84,17 @@ export function compareBatchRatings(a: UserGameRating, b: UserGameRating): numbe
     return ratingB - ratingA;
 }
 
+/** Meta UID prefix from a `highest[].game` label. */
+export function metaUidFromRatingGameLabel(game: string): string {
+    const paren = game.indexOf(" (");
+    return paren === -1 ? game : game.slice(0, paren);
+}
+
 /** Distinct rated users per meta UID from `highest[]` game labels. */
-export function buildPlayerCountsByUid(
-    highest: UserGameRating[],
-    resolveUid: (displayName: string) => string | undefined,
-): Record<string, number> {
+export function buildPlayerCountsByUid(highest: UserGameRating[]): Record<string, number> {
     const usersByUid = new Map<string, Set<string>>();
     for (const row of highest) {
-        const paren = row.game.indexOf(" (");
-        const displayName = paren === -1 ? row.game : row.game.slice(0, paren);
-        const uid = resolveUid(displayName);
-        if (uid === undefined) {
-            continue;
-        }
+        const uid = metaUidFromRatingGameLabel(row.game);
         let users = usersByUid.get(uid);
         if (users === undefined) {
             users = new Set();

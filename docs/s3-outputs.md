@@ -29,10 +29,35 @@ Each record in `ALL.json`, `meta/`, `player/`, and `event/` files conforms to th
 
 Key header fields used downstream:
 
-- `header.game.name` — meta game display name (used as map key in summarize)
+- `header.site.gameid` — stable composite id (see below); summarize parses meta UID and variant codes from this field
+- `header.game.name` — meta game display name (human-readable; not used as summarize map keys)
+- `header.game.variants` — localized variant labels at record-generation time
 - `header.players[].userid` — player ID
 - `header["date-start"]`, `header["date-end"]` — ISO timestamps
 - `moves` — move history (timeout/abandoned detection in summarize)
+
+### Game record `gameid`
+
+`header.site.gameid` is set in [`records.ts`](../src/functions/records.ts) via `encodeRecordGameId()` ([`recordGameId.ts`](../src/utils/recordGameId.ts)):
+
+| Format | Example | Notes |
+|--------|---------|-------|
+| Current | `{uuid}#{metaGame}:{sortedVariantUids}` | Variant UIDs joined with `\|`; trailing colon when no variants (`…#chess:`) |
+| Legacy | `{metaGame}#{uuid}` | Pre-encoding records; summarize treats variant codes as unknown |
+
+Parse/decode helpers: `parseRecordGameId`, `encodeRecordGameId`, `variantComboKey` in [`src/utils/recordGameId.ts`](../src/utils/recordGameId.ts).
+
+### Summary `game` keys
+
+`_summary*.json` map keys and `ratings.highest[].game` strings use **meta game UIDs**, not display names:
+
+| Key shape | Example |
+|-----------|---------|
+| Meta only | `go` |
+| Meta + variants | `go (9x9\|handicap)` |
+| Explicit no variants | `chess (no variants)` |
+
+Front-end clients resolve UIDs to localized display names via gameslib (`src/lib/summaryGameKeys.js` in the front repo).
 
 ## `_summary.json` and tier files
 

@@ -2,7 +2,7 @@
   "highest": [
     {
       "user": "alice",
-      "game": "Chess (no variants)",
+      "game": "chess (no variants)",
       "rating": 1350,
       "wld": [10, 5, 2],
       "glicko": {
@@ -18,7 +18,7 @@
     },
     {
       "user": "bob",
-      "game": "Chess (no variants)",
+      "game": "chess (no variants)",
       "rating": 1280,
       "wld": [8, 8, 1],
       "glicko": {
@@ -34,7 +34,7 @@
     },
     {
       "user": "alice",
-      "game": "Go (9x9|handicap)",
+      "game": "go (9x9|handicap)",
       "rating": 1400,
       "wld": [3, 1, 0],
       "glicko": {
@@ -50,7 +50,7 @@
     },
     {
       "user": "carol",
-      "game": "Go (9x9|handicap)",
+      "game": "go (9x9|handicap)",
       "rating": 1300,
       "wld": [2, 2, 0],
       "glicko": {
