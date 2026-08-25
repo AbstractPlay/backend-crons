@@ -12,7 +12,7 @@ Static artifacts are published to **`records.abstractplay.com`** (S3 + CloudFron
 | `_summary-players.json` | `summarize` | Tier 1 per-player bulk stats |
 | `_summary-ratings.json` | `summarize` | Tier 2 ratings bulk (Glicko-enriched) |
 | `player/{playerId}-summary.json` | `player-summary-worker` | Per-player summary slice (~few KB) |
-| `_summary-player-manifest.json` | `player-summary-fanout` | Fan-out metadata after enqueue |
+| `_summary-player-manifest.json` | `player-summary-fanout` | Fan-out manifest v2: `candidateCount`, `expectedCount` (enqueued this run), `skippedCount`, `inputFingerprint`, `contentHashes` |
 | `_manifest.json` | `records-manifest` | S3 object listing + `summaryFiles` (v2) |
 | `meta/{metaGame}.json` | `records` | Game records filtered by meta game name |
 | `player/{playerId}.json` | `records` | Game records for one player |
@@ -71,6 +71,23 @@ All JSON objects use `Content-Type: application/json`. Each tier/slice includes 
 | `hoursPer` | `{ mean, median, n, byWeek }` — winsorized (p2–p98) hours per move site-wide |
 
 Full field documentation: [Summarize](/crons/summarize/).
+
+### `_summary-player-manifest.json` (fan-out manifest v2)
+
+Written by `player-summary-fanout` after each run:
+
+| Field | Meaning |
+|-------|---------|
+| `version` | `2` |
+| `generated` | Same `generated` timestamp as tier files |
+| `enqueuedAt` | ISO timestamp when fan-out finished |
+| `candidateCount` | All-time players considered for slices |
+| `expectedCount` | SQS messages enqueued this run (changed slices only) |
+| `skippedCount` | Candidates skipped because slice content hash matched prior run |
+| `inputFingerprint` | SHA-256 of substantive tier content (excludes `generated` / `tier`) |
+| `contentHashes` | Per-user slice content hashes for the next run's skip logic |
+
+First deploy after this change enqueues all candidates (no v2 manifest yet). Legacy v1 manifests are treated as having no stored hashes.
 
 ## `mvtimes.json`
 

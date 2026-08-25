@@ -100,7 +100,9 @@ Reads `ALL.json`, computes site-wide analytics, writes `_summary.json` and tier 
 
 ## Step 5: Player summary fan-out (daily 06:15)
 
-`player-summary-fanout` reads `_summary.json`, enqueues one SQS message per player (slice JSON in the message body), and writes `_summary-player-manifest.json`. `player-summary-worker` Lambdas (SQS-triggered, concurrency 25) write `player/{userId}-summary.json`.
+`player-summary-fanout` loads `_summary-site.json`, `_summary-players.json`, and `_summary-ratings.json` in parallel (not the full monolith). It compares per-player content hashes against the previous `_summary-player-manifest.json` (v2) and enqueues SQS messages only for slices whose substantive content changed. When tier input is unchanged from the prior run, it skips all enqueues.
+
+`player-summary-worker` Lambdas (SQS-triggered, concurrency 25) write `player/{userId}-summary.json`. The handler returns structured metrics (`candidateCount`, `enqueuedCount`, `skippedCount`, `inputUnchanged`, `tierBytesLoaded`, `manifestBytes`) and logs a one-line summary.
 
 ## Failure and timing
 

@@ -129,8 +129,9 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Handler** | `src/functions/player-summary-fanout.ts` |
 | **Schedule** | Daily 06:15 UTC |
 | **Timeout / memory** | 300 s / 1024 MB |
-| **Input** | `_summary-site.json` (timestamp), `_summary.json` |
-| **Output** | SQS messages (one per player); `_summary-player-manifest.json` |
+| **Input** | `_summary-site.json`, `_summary-players.json`, `_summary-ratings.json`; previous `_summary-player-manifest.json` (optional) |
+| **Output** | SQS messages (changed player slices only); `_summary-player-manifest.json` v2 |
+| **Return** | `candidateCount`, `enqueuedCount`, `skippedCount`, `inputUnchanged`, `tierBytesLoaded`, `manifestBytes` |
 
 ### `player-summary-worker`
 

@@ -19,10 +19,10 @@ Source: [`src/functions/summarize.ts`](../src/functions/summarize.ts). Pure help
 | Records bucket | `_summary-players.json` | Tier 1 — per-player bulk (`StatSummaryPlayers`) |
 | Records bucket | `_summary-ratings.json` | Tier 2 — ratings bulk (`StatSummaryRatings`) |
 | Records bucket | `player/{userId}-summary.json` | Per-player slice for profile / quick-picks |
-| Records bucket | `_summary-player-manifest.json` | Fan-out enqueue metadata (`expectedCount`, `generated`) |
+| Records bucket | `_summary-player-manifest.json` | Fan-out manifest v2 (`candidateCount`, `expectedCount` = enqueued, `skippedCount`, `inputFingerprint`, `contentHashes`) |
 | Private ops bucket | `stats/rivalries.json` | Full rivalry pairs with user IDs |
 
-Per-player slices are written by **`player-summary-fanout`** (daily **06:15 UTC**), which enqueues one SQS message per user; **`player-summary-worker`** performs the S3 puts.
+Per-player slices are written by **`player-summary-fanout`** (daily **06:15 UTC**), which enqueues one SQS message per **changed** user slice; **`player-summary-worker`** performs the S3 puts. Unchanged slices are skipped via content hashes stored in `_summary-player-manifest.json` v2.
 
 Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/StatSummary.ts). See also [S3 outputs](/crons/s3-outputs/).
 
