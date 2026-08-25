@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { APGameRecord } from "@abstractplay/recranks";
 import {
     GLICKO_PERIOD_MS,
@@ -46,6 +46,9 @@ import {
     recordMoveSlotCount,
     recordRoundCount,
     recordWasPied,
+    metaGameFromRecord,
+    variantUidsFromRecord,
+    variantComboFromRecord,
 } from "./summarizeHelpers.js";
 import type { StatSummary } from "types/stats/StatSummary.js";
 
@@ -687,5 +690,42 @@ describe("recordRoundCount / recordMoveSlotCount", () => {
         };
         expect(recordRoundCount(rec)).toBe(2);
         expect(recordMoveSlotCount(rec)).toBe(2);
+    });
+});
+
+describe("record gameid helpers", () => {
+    const INSTANCE_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+
+    function recWithGameid(gameid: string): APGameRecord {
+        return {
+            header: {
+                game: { name: "Go", variants: ["9x9 board"] },
+                site: { name: "Abstract Play", gameid },
+                "date-start": "2024-01-01T12:00:00Z",
+                "date-end": "2024-01-01T13:00:00Z",
+                "date-generated": "2024-01-01T13:00:00Z",
+                players: [
+                    { name: "A", result: 1 },
+                    { name: "B", result: 0 },
+                ],
+            },
+            moves: [["e4", "e5"]],
+        };
+    }
+
+    it("reads meta UID and variant codes from encoded gameids", () => {
+        const rec = recWithGameid(`${INSTANCE_ID}#go:9x9|handicap`);
+        expect(metaGameFromRecord(rec)).toBe("go");
+        expect(variantUidsFromRecord(rec)).toEqual(["9x9", "handicap"]);
+        expect(variantComboFromRecord(rec)).toBe("9x9|handicap");
+    });
+
+    it("reads meta UID from legacy gameids", () => {
+        const rec = recWithGameid(`go#${INSTANCE_ID}`);
+        const legacy = { onLegacyGameId: vi.fn(), onLegacyVariantFallback: vi.fn() };
+        expect(metaGameFromRecord(rec, legacy)).toBe("go");
+        expect(legacy.onLegacyGameId).toHaveBeenCalled();
+        expect(variantUidsFromRecord(rec, legacy)).toEqual(["9x9 board"]);
+        expect(legacy.onLegacyVariantFallback).toHaveBeenCalled();
     });
 });

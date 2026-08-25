@@ -19,11 +19,11 @@ const fixture = JSON.parse(readFileSync(join(fixtureDir, "batch-ratings.json"), 
 
 describe("batchRatingGameLabel", () => {
     it("labels no variants", () => {
-        expect(batchRatingGameLabel("Chess", [])).toBe("Chess (no variants)");
+        expect(batchRatingGameLabel("chess", [])).toBe("chess (no variants)");
     });
 
     it("labels sorted variant UIDs", () => {
-        expect(batchRatingGameLabel("Go", ["handicap", "9x9"])).toBe("Go (9x9|handicap)");
+        expect(batchRatingGameLabel("go", ["handicap", "9x9"])).toBe("go (9x9|handicap)");
     });
 });
 
@@ -38,26 +38,26 @@ describe("defaultGlickoPrior", () => {
 
 describe("lookupBatchRating", () => {
     it("finds an existing row", () => {
-        const row = lookupBatchRating(fixture.highest, "Chess", [], "alice");
+        const row = lookupBatchRating(fixture.highest, "chess", [], "alice");
         expect(row.user).toBe("alice");
         expect(row.glicko?.ratingLow).toBe(1200);
     });
 
     it("returns prior for missing user", () => {
-        const row = lookupBatchRating(fixture.highest, "Chess", [], "unknown");
+        const row = lookupBatchRating(fixture.highest, "chess", [], "unknown");
         expect(row.glicko?.rating).toBe(1200);
         expect(row.glicko?.ratingLow).toBe(500);
     });
 
     it("matches variant label keys", () => {
-        const row = lookupBatchRating(fixture.highest, "Go", ["9x9", "handicap"], "carol");
+        const row = lookupBatchRating(fixture.highest, "go", ["9x9", "handicap"], "carol");
         expect(row.glicko?.ratingLow).toBe(1170);
     });
 });
 
 describe("compareBatchRatings", () => {
     it("sorts by ratingLow descending", () => {
-        const sorted = [...fixture.highest.filter((r) => r.game === "Chess (no variants)")].sort(
+        const sorted = [...fixture.highest.filter((r) => r.game === "chess (no variants)")].sort(
             compareBatchRatings,
         );
         expect(sorted[0]!.user).toBe("alice");
@@ -103,15 +103,7 @@ describe("compareBatchRatings", () => {
 
 describe("buildPlayerCountsByUid", () => {
     it("counts distinct users per meta uid", () => {
-        const counts = buildPlayerCountsByUid(fixture.highest, (name) => {
-            if (name === "Chess") {
-                return "chess";
-            }
-            if (name === "Go") {
-                return "go";
-            }
-            return undefined;
-        });
+        const counts = buildPlayerCountsByUid(fixture.highest);
         expect(counts).toEqual({ chess: 2, go: 2 });
     });
 });

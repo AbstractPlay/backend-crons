@@ -18,6 +18,7 @@ import type { UserGameRating } from "types/stats/UserGameRating.js";
 import type { UserNumList } from "types/stats/UserNumList.js";
 import type { UserNumber } from "types/stats/UserNumber.js";
 import type { TwoPlayerStats } from "types/stats/TwoPlayerStats.js";
+import { parseRecordGameId, variantComboKey } from "../utils/recordGameId.js";
 
 export const GLICKO_PERIOD_MS = 60 * 24 * 60 * 60 * 1000;
 export const GLICKO_RATING_START = 1200;
@@ -469,6 +470,60 @@ export function recordRoundCount(rec: APGameRecord): number {
     return rec.moves.filter((round) => roundHasRealMove(round)).length;
 }
 
+export type RecordGameIdFallback = {
+    resolveMetaUidFromDisplayName?: (displayName: string) => string | undefined;
+    onLegacyGameId?: () => void;
+    onLegacyVariantFallback?: () => void;
+};
+
+export function metaGameFromRecord(
+    rec: APGameRecord,
+    fallback?: RecordGameIdFallback,
+): string {
+    const gameid = rec.header.site?.gameid;
+    if (gameid !== undefined) {
+        const parsed = parseRecordGameId(gameid);
+        if (parsed !== undefined) {
+            if (parsed.legacy) {
+                fallback?.onLegacyGameId?.();
+            }
+            return parsed.metaGame;
+        }
+    }
+    const fromName = fallback?.resolveMetaUidFromDisplayName?.(rec.header.game.name);
+    if (fromName !== undefined) {
+        fallback?.onLegacyGameId?.();
+        return fromName;
+    }
+    return rec.header.game.name;
+}
+
+export function variantUidsFromRecord(
+    rec: APGameRecord,
+    fallback?: RecordGameIdFallback,
+): string[] {
+    const gameid = rec.header.site?.gameid;
+    if (gameid !== undefined) {
+        const parsed = parseRecordGameId(gameid);
+        if (parsed !== undefined && !parsed.legacy) {
+            return parsed.variantUids;
+        }
+    }
+    fallback?.onLegacyVariantFallback?.();
+    if (rec.header.game.variants !== undefined && rec.header.game.variants.length > 0) {
+        return [...rec.header.game.variants].sort();
+    }
+    return [];
+}
+
+export function variantComboFromRecord(
+    rec: APGameRecord,
+    fallback?: RecordGameIdFallback,
+): string {
+    return variantComboKey(variantUidsFromRecord(rec, fallback));
+}
+
+/** @deprecated Prefer variantComboFromRecord for stable variant UID grouping. */
 export function sortVariants(rec: APGameRecord): string {
     if (rec.header.game.variants !== undefined && rec.header.game.variants.length > 0) {
         const lst = [...rec.header.game.variants];

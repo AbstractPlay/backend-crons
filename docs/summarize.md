@@ -56,7 +56,7 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 
 Each record is indexed by:
 
-- Meta game name (`rec.header.game.name`)
+- Meta game UID parsed from `header.site.gameid` (see [S3 outputs — gameid](/crons/s3-outputs/#game-record-gameid)); legacy records fall back to display-name lookup via gameslib
 - Player user IDs
 - Date range (`oldestRec`, `newestRec`)
 - Timeout vs abandoned moves (via `summarizeHelpers`)
@@ -65,7 +65,7 @@ Each record is indexed by:
 
 ### Meta statistics (`metaStats`)
 
-For each meta game (and variant subgroup when multiple variant combinations exist), computes two-player stats:
+For each meta game UID (and variant subgroup when multiple variant combinations exist), computes two-player stats. Map keys match `batchRatingGameLabel()` output: `go`, `go (9x9|handicap)`, or `go (no variants)`.
 
 - Game count (`n`)
 - Average and median move count (`lenAvg`, `lenMedian`)
@@ -96,7 +96,9 @@ Uses `gameinfo` from gameslib to map display names to meta UIDs.
 
 ### Ratings (`ratings`)
 
-For each meta game (and variant subgroup), runs three rating engines from `@abstractplay/recranks`:
+Game keys in `ratings.highest[].game`, `glickoByGame[].game`, and `topPlayers[].game` are **meta UIDs** plus optional variant UIDs, produced by `batchRatingGameLabel()` in [`batchRatings.ts`](../src/lib/batchRatings.ts) (e.g. `go (9x9|handicap)`, `chess (no variants)`). Tournament seeding passes `tournament.metaGame` and `tournament.variants` (codes) into the same lookup.
+
+For each meta game UID (and variant subgroup), runs three rating engines from `@abstractplay/recranks`:
 
 | Engine | Class | Notes |
 |--------|-------|-------|

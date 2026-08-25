@@ -22,6 +22,8 @@ import {
     recordWasPied,
     timeoutStatsFromAccumulator,
     hIndexFromCounts,
+    metaGameFromRecord,
+    type RecordGameIdFallback,
     type HoursPerGameInput,
     type PlayerTimeoutAccumulator,
     type RivalryPairResult,
@@ -113,10 +115,11 @@ function nestedIncrement(
 export function scanRecord(
     state: SummarizeScanState,
     rec: APGameRecord,
-    gameInfoByName: Map<string, GameInfoFlags>,
+    gameInfoByUid: Map<string, GameInfoFlags>,
+    fallback?: RecordGameIdFallback,
 ): void {
     state.numGames++;
-    const gameName = rec.header.game.name;
+    const metaUid = metaGameFromRecord(rec, fallback);
     const dateEnd = rec.header["date-end"];
     const completedMs = new Date(dateEnd).getTime();
 
@@ -130,11 +133,11 @@ export function scanRecord(
         state.earliestMs = completedMs;
     }
 
-    incrementMapCount(state.metaPlayCount, gameName);
-    let metaUsers = state.metaPlayUsers.get(gameName);
+    incrementMapCount(state.metaPlayCount, metaUid);
+    let metaUsers = state.metaPlayUsers.get(metaUid);
     if (metaUsers === undefined) {
         metaUsers = new Set();
-        state.metaPlayUsers.set(gameName, metaUsers);
+        state.metaPlayUsers.set(metaUid, metaUsers);
     }
 
     const playerIdsInRec: string[] = [];
@@ -153,8 +156,8 @@ export function scanRecord(
             eclectic = new Set();
             state.playerEclecticGames.set(user, eclectic);
         }
-        eclectic.add(gameName);
-        nestedIncrement(state.playerGameCounts, user, gameName);
+        eclectic.add(metaUid);
+        nestedIncrement(state.playerGameCounts, user, metaUid);
     }
 
     for (const user of playerIdsInRec) {
@@ -194,22 +197,22 @@ export function scanRecord(
 
     accumulateRivalryPair(state.rivalryCounts, rec);
 
-    const found = gameInfoByName.get(gameName);
+    const found = gameInfoByUid.get(metaUid);
     if (found !== undefined) {
         if (gameSupportsPie(found.flags)) {
-            const acc = state.pieByGame.get(gameName) ?? { n: 0, pied: 0 };
+            const acc = state.pieByGame.get(metaUid) ?? { n: 0, pied: 0 };
             acc.n++;
             if (recordWasPied(rec.header)) {
                 acc.pied++;
             }
-            state.pieByGame.set(gameName, acc);
+            state.pieByGame.set(metaUid, acc);
         }
         if (gameSupportsMultiPlayerCount(found.playercounts)) {
             const key = String(rec.header.players.length);
-            let byCount = state.playerCountMixByGame.get(gameName);
+            let byCount = state.playerCountMixByGame.get(metaUid);
             if (byCount === undefined) {
                 byCount = new Map();
-                state.playerCountMixByGame.set(gameName, byCount);
+                state.playerCountMixByGame.set(metaUid, byCount);
             }
             byCount.set(key, (byCount.get(key) ?? 0) + 1);
         }
@@ -225,7 +228,7 @@ export function scanRecord(
     const earliest = state.earliestMs!;
     const daysAgo = (completedMs - earliest) / MS_PER_DAY;
     const bucket = Math.floor(daysAgo / 7);
-    state.histList.push({ game: gameName, bucket });
+    state.histList.push({ game: metaUid, bucket });
     for (const user of playerIdsInRec) {
         state.histListPlayers.push({ user, bucket });
         state.completedList.push({ user, time: completedMs });

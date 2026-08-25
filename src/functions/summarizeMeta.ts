@@ -20,7 +20,8 @@ import {
     computeGlickoNumPeriods,
     hIndexFromCounts,
     partitionByGlickoPeriod,
-    sortVariants,
+    variantComboFromRecord,
+    type RecordGameIdFallback,
     toGlickoStats,
 } from "./summarizeHelpers.js";
 import { batchRatingGameLabel } from "../lib/batchRatings.js";
@@ -72,20 +73,23 @@ export async function loadMetaShard(
     return JSON.parse(str) as APGameRecord[];
 }
 
-export function buildMetaStatsForGame(recs: APGameRecord[]): Record<string, TwoPlayerStats> {
+export function buildMetaStatsForGame(
+    recs: APGameRecord[],
+    metaUid: string,
+    fallback?: RecordGameIdFallback,
+): Record<string, TwoPlayerStats> {
     const metaStats: Record<string, TwoPlayerStats> = {};
-    const gameName = recs[0]?.header.game.name ?? "unknown";
     const combined = calcTwoPlayerStats(recs);
     if (combined !== undefined) {
-        metaStats[gameName] = combined;
+        metaStats[metaUid] = combined;
     }
-    const allVariants = new Set(recs.map((r) => sortVariants(r)));
+    const allVariants = new Set(recs.map((r) => variantComboFromRecord(r, fallback)));
     if (allVariants.size > 1) {
         for (const combo of allVariants) {
-            const subset = recs.filter((r) => sortVariants(r) === combo);
+            const subset = recs.filter((r) => variantComboFromRecord(r, fallback) === combo);
             const substats = calcTwoPlayerStats(subset);
             const variants = combo === "" ? [] : combo.split("|");
-            const metaName = batchRatingGameLabel(gameName, variants);
+            const metaName = batchRatingGameLabel(metaUid, variants);
             if (substats !== undefined) {
                 metaStats[metaName] = substats;
             }
@@ -115,23 +119,24 @@ export function buildHMetaForGame(
 
 export function rateMetaGameVariants(
     recs: APGameRecord[],
+    metaUid: string,
     rater: ELOBasic,
     ratingList: RatingListEntry[],
     rawList: UserGameRating[],
+    fallback?: RecordGameIdFallback,
 ): void {
     if (recs.length === 0) {
         return;
     }
-    const meta = recs[0]!.header.game.name;
-    const allVariants = new Set(recs.map((r) => sortVariants(r)));
+    const allVariants = new Set(recs.map((r) => variantComboFromRecord(r, fallback)));
     if (allVariants.size === 0) {
         return;
     }
     for (const combo of allVariants) {
-        console.log(`Rating game ${meta}, variant grouping ${combo}`);
-        const subset = recs.filter((r) => sortVariants(r) === combo);
+        console.log(`Rating game ${metaUid}, variant grouping ${combo}`);
+        const subset = recs.filter((r) => variantComboFromRecord(r, fallback) === combo);
         const variants = combo === "" ? [] : combo.split("|");
-        const metaName = batchRatingGameLabel(meta, variants);
+        const metaName = batchRatingGameLabel(metaUid, variants);
 
         const results = rater.runProcessed(subset);
         console.log(
@@ -140,7 +145,7 @@ export function rateMetaGameVariants(
             }${results.errors !== undefined ? results.errors.join("\n") + "\n" : ""}`,
         );
         for (const rating of results.ratings.values()) {
-            rating.gamename = meta;
+            rating.gamename = metaUid;
             const [, userid] = rating.userid.split("|");
             rating.userid = userid;
             ratingList.push({ user: userid, game: metaName, rating });

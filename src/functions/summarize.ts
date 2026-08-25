@@ -30,6 +30,7 @@ import {
     RIVALRY_MIN_GAMES,
     RIVALRY_PUBLIC_MIN_GAMES,
     splitStatSummary,
+    type RecordGameIdFallback,
 } from "./summarizeHelpers.js";
 import {
     buildMetaStatsForGame,
@@ -111,10 +112,10 @@ async function loadMvtimes(): Promise<{
     }
 }
 
-function buildGameInfoByName(): Map<string, GameInfoFlags> {
+function buildGameInfoByUid(): Map<string, GameInfoFlags> {
     const map = new Map<string, GameInfoFlags>();
     for (const info of gameinfo.values()) {
-        map.set(info.name, {
+        map.set(info.uid, {
             name: info.name,
             flags: info.flags,
             playercounts: info.playercounts,
@@ -124,7 +125,20 @@ function buildGameInfoByName(): Map<string, GameInfoFlags> {
 }
 
 export const handler: Handler = async () => {
-    const gameInfoByName = buildGameInfoByName();
+    const gameInfoByUid = buildGameInfoByUid();
+    const legacyRecordStats = { legacyGameIds: 0, legacyVariantFallbacks: 0 };
+    const recordGameIdFallback: RecordGameIdFallback = {
+        resolveMetaUidFromDisplayName: (displayName) => {
+            const found = [...gameinfo.values()].find((i) => i.name === displayName);
+            return found?.uid;
+        },
+        onLegacyGameId: () => {
+            legacyRecordStats.legacyGameIds++;
+        },
+        onLegacyVariantFallback: () => {
+            legacyRecordStats.legacyVariantFallbacks++;
+        },
+    };
     const scanState = createSummarizeScanState();
 
     console.log("Streaming all game records from ALL.json");
@@ -133,12 +147,16 @@ export const handler: Handler = async () => {
             s3,
             REC_BUCKET,
             "ALL.json",
-            (rec) => scanRecord(scanState, rec, gameInfoByName),
+            (rec) => scanRecord(scanState, rec, gameInfoByUid, recordGameIdFallback),
         );
         if (count !== scanState.numGames) {
             throw new Error(`Stream count mismatch: ${count} vs ${scanState.numGames}`);
         }
         console.log(`Scanned ${count} records`);
+        console.log(
+            `Legacy gameid fallbacks: ${legacyRecordStats.legacyGameIds} records, `
+                + `${legacyRecordStats.legacyVariantFallbacks} variant fallbacks`,
+        );
     } catch (err) {
         console.log(`Error occurred streaming ALL.json: ${err}`);
         return;
@@ -176,18 +194,12 @@ export const handler: Handler = async () => {
         if (recs.length === 0) {
             continue;
         }
-        const gameName = recs[0]!.header.game.name;
-        const found = [...gameinfo.values()].find((i) => i.name === gameName);
-        if (found === undefined) {
-            console.log(`Could not find the meta name for the game "${gameName}".`);
-        } else {
-            const hEntry = buildHMetaForGame(recs, found.uid);
-            if (hEntry !== undefined) {
-                hMeta.push(hEntry);
-            }
+        const hEntry = buildHMetaForGame(recs, metaUid);
+        if (hEntry !== undefined) {
+            hMeta.push(hEntry);
         }
-        Object.assign(metaStats, buildMetaStatsForGame(recs));
-        rateMetaGameVariants(recs, rater, ratingList, rawList);
+        Object.assign(metaStats, buildMetaStatsForGame(recs, metaUid, recordGameIdFallback));
+        rateMetaGameVariants(recs, metaUid, rater, ratingList, rawList, recordGameIdFallback);
     }
 
     const ratedGames = new Set(ratingList.map((r) => r.game));
@@ -240,10 +252,7 @@ export const handler: Handler = async () => {
         }
     }
 
-    const playerCountsByUid = buildPlayerCountsByUid(rawList, (displayName) => {
-        const info = [...gameinfo.values()].find((i) => i.name === displayName);
-        return info?.uid;
-    });
+    const playerCountsByUid = buildPlayerCountsByUid(rawList);
 
     console.log("Calculating hours per move");
     const hoursPerResult = computeHoursPerStats(scanState.hoursPerGames, earliest);
