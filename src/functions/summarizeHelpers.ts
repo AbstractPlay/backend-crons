@@ -20,6 +20,9 @@ import type { UserNumber } from "types/stats/UserNumber.js";
 import type { TwoPlayerStats } from "types/stats/TwoPlayerStats.js";
 
 export const GLICKO_PERIOD_MS = 60 * 24 * 60 * 60 * 1000;
+export const GLICKO_RATING_START = 1200;
+export const GLICKO_RD_START = 350;
+export const GLICKO_VOLATILITY_START = 0.06;
 
 type MoveSlot = APGameRecord["moves"][number][number];
 type TurnModel = "sequential" | "simultaneous" | "sequenced" | "skip-turn";

@@ -9,6 +9,7 @@ import { streamJsonArrayFromS3 } from "../utils/streamJsonArray.js";
 import { alignWeeklyActiveMovers } from "../utils/moveSeasonality.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
 import { gameinfo } from "../gameslibRequire.js";
+import { buildPlayerCountsByUid, compareBatchRatings } from "../lib/batchRatings.js";
 import type { UserRating, StatSummary, RivalriesFull } from "types/index.js";
 import type { UserGameRating } from "types/index.js";
 import type { GeoStats } from "types/index.js";
@@ -231,16 +232,18 @@ export const handler: Handler = async () => {
 
     const topPlayers: UserGameRating[] = [];
     for (const g of ratedGames) {
-        const ratings = ratingList.filter((r) => r.game === g);
-        ratings.sort((a, b) => b.rating.rating - a.rating.rating);
-        const top = ratings[0]!;
-        topPlayers.push({
-            user: top.user,
-            game: g,
-            rating: Math.round(top.rating.rating),
-            wld: [top.rating.wins, top.rating.losses, top.rating.draws],
-        });
+        const rows = rawList.filter((r) => r.game === g);
+        rows.sort(compareBatchRatings);
+        const top = rows[0];
+        if (top !== undefined) {
+            topPlayers.push(top);
+        }
     }
+
+    const playerCountsByUid = buildPlayerCountsByUid(rawList, (displayName) => {
+        const info = [...gameinfo.values()].find((i) => i.name === displayName);
+        return info?.uid;
+    });
 
     console.log("Calculating hours per move");
     const hoursPerResult = computeHoursPerStats(scanState.hoursPerGames, earliest);
@@ -349,6 +352,7 @@ export const handler: Handler = async () => {
             glickoByGame,
             glickoSite,
             glickoMeta,
+            playerCountsByUid,
         },
         topPlayers,
         plays: {

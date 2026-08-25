@@ -84,6 +84,7 @@ const minimalStatSummary = (overrides: Partial<StatSummary> = {}): StatSummary =
             generatedAt: "2026-01-01T00:00:00.000Z",
             counts: { byGame: [], site: { rated: 0, provisional: 0, established: 0 } },
         },
+        playerCountsByUid: {},
     },
     topPlayers: [],
     plays: { total: [], width: [] },
