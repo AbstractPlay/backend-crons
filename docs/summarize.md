@@ -101,7 +101,7 @@ For each meta game (and variant subgroup), runs three rating engines from `@abst
 | Engine | Class | Notes |
 |--------|-------|-------|
 | ELO | `ELOBasic` | Default batch rating |
-| Glicko-2 | `Glicko2` | Period-based; 60-day periods via `GLICKO_PERIOD_MS` |
+| Glicko-2 | `Glicko2` | Period-based; 60-day periods via `GLICKO_PERIOD_MS`; prior **1200 / 350** (aligned with batch Elo start) |
 | TrueSkill | `Trueskill` | `betaStart: 25/9` |
 
 Outputs:
@@ -112,6 +112,9 @@ Outputs:
 - `ratings.glickoByGame` — flat Glicko-only rows: `{ user, game, glicko }` (same pool as `highest`)
 - `ratings.glickoSite` — per-user cross-meta composite: weighted `rating`, `rd`, `ratingLow` / `ratingHigh`, `n`, plus `provisional` / `established` (true if any game row matches)
 - `ratings.glickoMeta` — thresholds, `periodMs`, `generatedAt`, and run counts (`counts.byGame`, `counts.site`)
+- `ratings.playerCountsByUid` — distinct rated players per meta game UID (across all variant rows); replaces DynamoDB `ratingsCount` for display once consumers switch
+
+**Primary rank metric:** conservative Glicko `ratingLow` (`rating − 2×rd`). `topPlayers` and tournament seeding use this ordering; batch Elo `rating` remains a secondary column.
 
 #### Glicko row shape (`GlickoStats`)
 
@@ -140,6 +143,8 @@ The monolith remains the full contract. Three tier files are **views** for lazy 
 Each tier/slice includes `generated` (ISO timestamp). Uploaded with `Content-Type: application/json` and `Cache-Control: public, max-age=0, must-revalidate` (see [S3 outputs — CloudFront and caching](/crons/s3-outputs/#cloudfront-and-caching)).
 
 ### Player rankings (`players`, `topPlayers`)
+
+- **`topPlayers`** — highest `ratingLow` per rated game/variant key; full `UserGameRating` row (`glicko`, Elo `rating`, `wld`)
 
 - **`social`** — players with the most distinct opponents
 - **`eclectic`** — players who played the widest variety of meta games

@@ -78,6 +78,7 @@ export type StatSummaryRatings = {
         glickoByGame: GlickoByGameRow[];
         glickoSite: GlickoSiteEntry[];
         glickoMeta: GlickoMeta;
+        playerCountsByUid: Record<string, number>;
     };
 };
 

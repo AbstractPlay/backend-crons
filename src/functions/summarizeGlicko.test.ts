@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Glicko2, type APGameRecord, type IGlickoRating } from "@abstractplay/recranks";
 import {
     GLICKO_PERIOD_MS,
+    GLICKO_RATING_START,
+    GLICKO_RD_START,
     computeGlickoNumPeriods,
     partitionByGlickoPeriod,
 } from "./summarizeHelpers.js";
@@ -32,7 +34,11 @@ function makeGameRecord(opts: {
 
 /** Mirrors summarize.ts multi-period Glicko loop for regression testing. */
 function runSummarizeStyleGlicko(recs: APGameRecord[]): Map<string, IGlickoRating> {
-    const glicko = new Glicko2({ minRounds: 0 });
+    const glicko = new Glicko2({
+        minRounds: 0,
+        ratingStart: GLICKO_RATING_START,
+        rdStart: GLICKO_RD_START,
+    });
     const oldestMs = new Date(recs.map((r) => r.header["date-end"]).sort()[0]!).getTime();
     const newestMs = new Date(recs.map((r) => r.header["date-end"]).sort().at(-1)!).getTime();
     const delta = newestMs - oldestMs;

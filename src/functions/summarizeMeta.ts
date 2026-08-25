@@ -14,6 +14,8 @@ import type { UserGameRating } from "types/stats/UserGameRating.js";
 import type { UserNumber } from "types/stats/UserNumber.js";
 import {
     GLICKO_PERIOD_MS,
+    GLICKO_RATING_START,
+    GLICKO_RD_START,
     calcTwoPlayerStats,
     computeGlickoNumPeriods,
     hIndexFromCounts,
@@ -21,6 +23,7 @@ import {
     sortVariants,
     toGlickoStats,
 } from "./summarizeHelpers.js";
+import { batchRatingGameLabel } from "../lib/batchRatings.js";
 
 export type RatingListEntry = {
     user: string;
@@ -81,10 +84,8 @@ export function buildMetaStatsForGame(recs: APGameRecord[]): Record<string, TwoP
         for (const combo of allVariants) {
             const subset = recs.filter((r) => sortVariants(r) === combo);
             const substats = calcTwoPlayerStats(subset);
-            let metaName = `${gameName} (${combo})`;
-            if (combo === "") {
-                metaName = `${gameName} (no variants)`;
-            }
+            const variants = combo === "" ? [] : combo.split("|");
+            const metaName = batchRatingGameLabel(gameName, variants);
             if (substats !== undefined) {
                 metaStats[metaName] = substats;
             }
@@ -129,10 +130,8 @@ export function rateMetaGameVariants(
     for (const combo of allVariants) {
         console.log(`Rating game ${meta}, variant grouping ${combo}`);
         const subset = recs.filter((r) => sortVariants(r) === combo);
-        let metaName = `${meta} (${combo})`;
-        if (combo === "") {
-            metaName = `${meta} (no variants)`;
-        }
+        const variants = combo === "" ? [] : combo.split("|");
+        const metaName = batchRatingGameLabel(meta, variants);
 
         const results = rater.runProcessed(subset);
         console.log(
@@ -169,7 +168,10 @@ export function rateMetaGameVariants(
         console.log(`Final Trueskill ratings:\n${JSON.stringify([...tsRatings.values()])}`);
 
         console.log("Running Glicko2 ratings");
-        const glicko = new Glicko2();
+        const glicko = new Glicko2({
+            ratingStart: GLICKO_RATING_START,
+            rdStart: GLICKO_RD_START,
+        });
         const oldest = new Date(
             subset.map((r) => r.header["date-end"]).sort((a, b) => a.localeCompare(b))[0]!,
         );

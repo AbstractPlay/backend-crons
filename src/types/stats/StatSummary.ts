@@ -35,6 +35,7 @@ export type StatSummary = {
         glickoByGame: GlickoByGameRow[];
         glickoSite: GlickoSiteEntry[];
         glickoMeta: GlickoMeta;
+        playerCountsByUid: Record<string, number>;
     };
     topPlayers: UserGameRating[];
     plays: {
