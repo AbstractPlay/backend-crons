@@ -2,7 +2,7 @@ import type { GlickoMeta } from "types/stats/GlickoStats.js";
 import type { StatSummaryRatings } from "types/stats/StatSummaryTiers.js";
 import type { UserGameRating } from "types/stats/UserGameRating.js";
 import { RATINGS_NOTIFICATION_SNAPSHOT_KEY } from "../constants/recordsBucket.js";
-import { GLICKO_PRIOR_RATING_LOW, parseBatchRatingGameLabel } from "./batchRatings.js";
+import { GLICKO_PRIOR_RATING_LOW, defaultGlickoPrior, parseBatchRatingGameLabel } from "./batchRatings.js";
 
 export const MIN_RATING_DELTA = 5;
 export const NOTIFICATION_INITIAL_TTL_DAYS = 180;
@@ -11,6 +11,8 @@ const NOTIFICATION_PK_PREFIX = "NOTIFICATION#";
 
 export type RatingNotificationSnapshotEntry = {
     ratingLow: number;
+    rd: number;
+    provisional: boolean;
     n: number;
 };
 
@@ -27,13 +29,16 @@ export type RatingChangeCandidate = {
     variants: string[];
     oldRating: number;
     newRating: number;
+    oldRd: number;
+    newRd: number;
+    oldProvisional: boolean;
+    newProvisional: boolean;
     delta: number;
 };
 
 type RatingChangeDiffRow = RatingChangeCandidate & {
     oldN: number;
     newN: number;
-    provisional: boolean;
 };
 
 export type RatingChangeFilterStats = {
@@ -53,6 +58,10 @@ export type RatingChangeNotificationItem = {
         gameId: string;
         oldRating: number;
         newRating: number;
+        oldRd: number;
+        newRd: number;
+        oldProvisional: boolean;
+        newProvisional: boolean;
         delta: number;
     };
     expiresAt: number;
@@ -70,6 +79,12 @@ function snapshotEntryKey(userId: string, gameLabel: string): string {
 function roundRatingLow(ratingLow: number): number {
     return Math.round(ratingLow);
 }
+
+function roundRd(rd: number): number {
+    return Math.round(rd);
+}
+
+const GLICKO_PRIOR = defaultGlickoPrior();
 
 function uniqueSortKey(now = Date.now()): string {
     return `${now}#${Math.random().toString(36).slice(2, 10)}`;
@@ -105,6 +120,8 @@ export function buildRatingChangeSnapshot(
         }
         entries[snapshotEntryKey(row.user, row.game)] = {
             ratingLow: glicko.ratingLow,
+            rd: glicko.rd,
+            provisional: glicko.provisional,
             n: glicko.n,
         };
     }
@@ -128,9 +145,13 @@ export function diffRatingChanges(
         const key = snapshotEntryKey(row.user, row.game);
         const oldEntry = prev.entries[key];
         const oldRatingLow = oldEntry?.ratingLow ?? GLICKO_PRIOR_RATING_LOW;
+        const oldRd = oldEntry?.rd ?? GLICKO_PRIOR.rd;
+        const oldProvisional = oldEntry?.provisional ?? GLICKO_PRIOR.provisional;
         const oldN = oldEntry?.n ?? 0;
         const newRating = roundRatingLow(glicko.ratingLow);
         const oldRating = roundRatingLow(oldRatingLow);
+        const newRd = roundRd(glicko.rd);
+        const oldRdRounded = roundRd(oldRd);
         const { metaUid, variantUids } = parseBatchRatingGameLabel(row.game);
         rows.push({
             userId: row.user,
@@ -139,10 +160,13 @@ export function diffRatingChanges(
             variants: variantUids,
             oldRating,
             newRating,
+            oldRd: oldRdRounded,
+            newRd,
+            oldProvisional,
+            newProvisional: glicko.provisional,
             delta: newRating - oldRating,
             oldN,
             newN: glicko.n,
-            provisional: glicko.provisional,
         });
     }
     return rows;
@@ -170,7 +194,7 @@ export function filterCandidates(
             stats.skippedNoActivity += 1;
             continue;
         }
-        if (row.provisional && row.newN < constants.minGamesProvisional) {
+        if (row.newProvisional && row.newN < constants.minGamesProvisional) {
             stats.skippedProvisional += 1;
             continue;
         }
@@ -185,6 +209,10 @@ export function filterCandidates(
             variants: row.variants,
             oldRating: row.oldRating,
             newRating: row.newRating,
+            oldRd: row.oldRd,
+            newRd: row.newRd,
+            oldProvisional: row.oldProvisional,
+            newProvisional: row.newProvisional,
             delta: row.delta,
         });
     }
@@ -208,6 +236,10 @@ export function toNotificationItems(
                 gameId: "",
                 oldRating: candidate.oldRating,
                 newRating: candidate.newRating,
+                oldRd: candidate.oldRd,
+                newRd: candidate.newRd,
+                oldProvisional: candidate.oldProvisional,
+                newProvisional: candidate.newProvisional,
                 delta: candidate.delta,
             },
             expiresAt: notificationExpiresAt(itemNow),
