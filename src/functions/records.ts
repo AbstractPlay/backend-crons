@@ -13,6 +13,7 @@ import { enApgames, enApresults } from "../gameslibLocales.js";
 import enBack from "../locales/en/apback.json";
 import { decompressGameState } from "../utils/gameState.js";
 import { encodeRecordGameId } from "../utils/recordGameId.js";
+import { findTournamentForGame } from "../utils/recordTournament.js";
 import { gameRecordIsUnrated } from "../utils/recordUnrated.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
 
@@ -168,7 +169,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         let event: string|null = null;
         let round: string|null = null;
         if (gdata.tournament !== undefined) {
-            const trec = tournaments.find(t => t.id === gdata.tournament);
+            const trec = findTournamentForGame(tournaments, gdata.tournament, gdata.metaGame);
             if (trec !== undefined) {
                 event = `Automated Tournament #${trec.number} (${trec.sk})`
                 round = "1";
