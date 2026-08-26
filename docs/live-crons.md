@@ -44,6 +44,22 @@ Uses i18next with the `apback` namespace. Locale files in [`src/locales/`](https
 - [Tournaments subsystem](/backend/subsystems/tournaments/)
 - [Database schema](/backend/database-schema/) — `TOURNAMENT` record shape
 
+### Manual invoke
+
+Scheduled runs sweep all eligible tournaments. For a **single tournament** (including resume after a partial start):
+
+```bash
+serverless invoke -f starttournaments --stage prod --path invoke-resume.json
+```
+
+Example `invoke-resume.json`:
+
+```json
+{"tournamentId":"<uuid>","resume":true}
+```
+
+Resume requires `started: false`. Tournament start is **not** exposed via node-backend queries or the admin dashboard — only this Lambda. Operational scripts: `bin/check-tournament-prod.mjs`, `bin/cleanup-tournament-prod.mjs`.
+
 ## `standingchallenges`
 
 **Schedule:** 00:00 and 12:00 UTC daily  
