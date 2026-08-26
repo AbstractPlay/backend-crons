@@ -5,6 +5,7 @@ export type GameRec = {
     metaGame: string;
     state: string;
     pieInvoked?: boolean;
+    rated?: boolean;
     players: {
         name: string;
         id: string;

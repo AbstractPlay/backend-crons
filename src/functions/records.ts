@@ -13,6 +13,7 @@ import { enApgames, enApresults } from "../gameslibLocales.js";
 import enBack from "../locales/en/apback.json";
 import { decompressGameState } from "../utils/gameState.js";
 import { encodeRecordGameId } from "../utils/recordGameId.js";
+import { gameRecordIsUnrated } from "../utils/recordUnrated.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
@@ -185,6 +186,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             }
         }
         const variantUids = g.variants ?? (gdata.variants as string[] | undefined) ?? [];
+        const unrated = gameRecordIsUnrated(gdata.metaGame, variantUids, gdata.rated);
         const rec = g.genRecord({
             uid: encodeRecordGameId(gdata.id, gdata.metaGame, variantUids),
             players: gdata.players.map(p => ({
@@ -194,6 +196,7 @@ export const handler: Handler = async (event: any, context?: any) => {
             })),
             event: event !== null ? event : undefined,
             round: round !== null ? round : undefined,
+            unrated: unrated ? true : undefined,
         });
         if (rec === undefined) {
             throw new Error(`Unable to create a game report for ${gdata.metaGame} game ${gdata.id}:\n${JSON.stringify(gdata.state)}`);
