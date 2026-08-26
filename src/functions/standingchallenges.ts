@@ -6,6 +6,9 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, QueryCom
 // import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import { Handler } from "aws-lambda";
+import { listActiveCurrentGames } from "../lib/activeGamesForUser.js";
+import { adjustShardedCounts } from "../lib/shardedMetaGameCounts.js";
+import { WriteJournal, loadItem } from "../lib/writeJournal.js";
 
 const REGION = "us-east-1";
 const clnt = new DynamoDBClient({ region: REGION });
@@ -165,6 +168,7 @@ export const handler: Handler = async (event: any, context?: any) => {
       recCount = recs.length;
       // for each record (user)
       for (const rec of recs) {
+        try {
         // get player profile
         const userrec = await ddbDocClient.send(
             new GetCommand({
@@ -209,14 +213,17 @@ export const handler: Handler = async (event: any, context?: any) => {
                 }
               }
           }
-          const matchingGames: Game[] = [];
-          if (user.games !== undefined && Array.isArray(user.games)) {
-            for (const game of user.games) {
-                if (game.metaGame === entry.metaGame && game.gameEnded === undefined) {
-                    metaCount++;
-                    matchingGames.push(game);
-                }
-              }
+          const matchingGames: { metaGame: string; variants?: string[] }[] = [];
+          const activeGames = await listActiveCurrentGames(
+            ddbDocClient,
+            process.env.ABSTRACT_PLAY_TABLE!,
+            rec.sk,
+          );
+          for (const game of activeGames) {
+            if (game.metaGame === entry.metaGame) {
+              metaCount++;
+              matchingGames.push(game);
+            }
           }
           let hasMatchingChallenges = false;
           // if sensitivity is simply meta, just record the counts
@@ -294,6 +301,11 @@ export const handler: Handler = async (event: any, context?: any) => {
             issued++;
           }
         }
+        } catch (userErr) {
+          errors++;
+          logGetItemError(userErr);
+          console.log(`Error processing standing challenges for user ${rec.sk}: ${userErr}`);
+        }
       }
   }
   catch (error) {
@@ -369,11 +381,18 @@ async function *queryItemsGenerator(queryInput: QueryCommandInput): AsyncGenerat
 }
 
 async function newStandingChallenge(userid: string, challenge: FullChallenge) {
+    const tableName = process.env.ABSTRACT_PLAY_TABLE!;
     const challengeId = uuid();
-    const addChallenge = ddbDocClient.send(new PutCommand({
-      TableName: process.env.ABSTRACT_PLAY_TABLE,
+    const journal = new WriteJournal();
+    const challengePk = "STANDINGCHALLENGE#" + challenge.metaGame;
+    let countAdjusted = false;
+
+    try {
+      journal.trackCreate(challengePk, challengeId);
+      await ddbDocClient.send(new PutCommand({
+        TableName: tableName,
         Item: {
-          "pk": "STANDINGCHALLENGE#" + challenge.metaGame,
+          "pk": challengePk,
           "sk": challengeId,
           "id": challengeId,
           "metaGame": challenge.metaGame,
@@ -383,7 +402,7 @@ async function newStandingChallenge(userid: string, challenge: FullChallenge) {
           "seating": challenge.seating,
           "variants": challenge.variants,
           "challenger": challenge.challenger,
-          "players": [challenge.challenger], // users that have accepted
+          "players": [challenge.challenger],
           "clockStart": challenge.clockStart,
           "clockInc": challenge.clockInc,
           "clockMax": challenge.clockMax,
@@ -395,18 +414,32 @@ async function newStandingChallenge(userid: string, challenge: FullChallenge) {
         }
       }));
 
-    const updateChallenger = ddbDocClient.send(new UpdateCommand({
-      TableName: process.env.ABSTRACT_PLAY_TABLE,
-      Key: { "pk": "USER", "sk": userid },
-      ExpressionAttributeValues: { ":c": new Set([challenge.metaGame + '#' + challengeId]) },
-      ExpressionAttributeNames: { "#cs": "challenges_standing" },
-      UpdateExpression: "add #cs :c",
-    }));
+      const userBefore = await loadItem(ddbDocClient, tableName, 'USER', userid);
+      journal.trackReplace(userBefore, 'USER', userid);
+      await ddbDocClient.send(new UpdateCommand({
+        TableName: tableName,
+        Key: { "pk": "USER", "sk": userid },
+        ExpressionAttributeValues: { ":c": new Set([challenge.metaGame + '#' + challengeId]) },
+        ExpressionAttributeNames: { "#cs": "challenges_standing" },
+        UpdateExpression: "add #cs :c",
+      }));
 
-    const updateStandingChallengeCnt = updateStandingChallengeCount(challenge.metaGame, 1);
-
-    await Promise.all([addChallenge, updateChallenger, updateStandingChallengeCnt]);
-    console.log("Successfully added challenge" + challengeId);
+      await adjustShardedCounts(ddbDocClient, tableName, challenge.metaGame, { standingchallenges: 1 });
+      countAdjusted = true;
+      console.log("Successfully added challenge" + challengeId);
+    } catch (err) {
+      logGetItemError(err);
+      if (countAdjusted) {
+        try {
+          await adjustShardedCounts(ddbDocClient, tableName, challenge.metaGame, { standingchallenges: -1 });
+        } catch (countErr) {
+          logGetItemError(countErr);
+          console.log(`Failed to roll back standingchallenges count for ${challenge.metaGame}`);
+        }
+      }
+      await journal.rollback(ddbDocClient, tableName, (cmd) => ddbDocClient.send(cmd));
+      throw err;
+    }
 }
 
 const getAllRecs = async (): Promise<StandingChallengeRec[]> => {
@@ -443,14 +476,4 @@ const stringArraysEqual = (lst1: string[], lst2: string[]): boolean => {
         }
     }
     return false;
-}
-
-async function updateStandingChallengeCount(metaGame: any, diff: number) {
-    return ddbDocClient.send(new UpdateCommand({
-      TableName: process.env.ABSTRACT_PLAY_TABLE,
-      Key: { "pk": "METAGAMES", "sk": "COUNTS" },
-      ExpressionAttributeNames: { "#g": metaGame },
-      ExpressionAttributeValues: {":n": diff, ":zero": 0},
-      UpdateExpression: "set #g.standingchallenges = if_not_exists(#g.standingchallenges, :zero) + :n",
-    }));
 }
