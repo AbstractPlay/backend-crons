@@ -18,6 +18,7 @@ function glickoRow(
     ratingLow: number,
     n: number,
     provisional = false,
+    rd = 60,
 ): UserGameRating {
     return {
         user,
@@ -26,7 +27,7 @@ function glickoRow(
         wld: [n, 0, 0],
         glicko: {
             rating: ratingLow + 100,
-            rd: 60,
+            rd,
             volatility: 0.06,
             ratingLow,
             ratingHigh: ratingLow + 200,
@@ -35,6 +36,15 @@ function glickoRow(
             n,
         },
     };
+}
+
+function snapshotEntry(
+    ratingLow: number,
+    n: number,
+    rd = 60,
+    provisional = false,
+): { ratingLow: number; rd: number; provisional: boolean; n: number } {
+    return { ratingLow, rd, provisional, n };
 }
 
 function minimalGlickoMeta(): GlickoMeta {
@@ -83,8 +93,12 @@ describe("buildRatingChangeSnapshot", () => {
             glickoRow("alice", "go (9x9|handicap)", 1170, 5),
         ]);
         const snapshot = buildRatingChangeSnapshot(summary, summary.ratings.glickoMeta.generatedAt);
-        expect(snapshot.entries["alice|chess (no variants)"]).toEqual({ ratingLow: 1200, n: 10 });
-        expect(snapshot.entries["alice|go (9x9|handicap)"]).toEqual({ ratingLow: 1170, n: 5 });
+        expect(snapshot.entries["alice|chess (no variants)"]).toEqual(
+            snapshotEntry(1200, 10),
+        );
+        expect(snapshot.entries["alice|go (9x9|handicap)"]).toEqual(
+            snapshotEntry(1170, 5),
+        );
     });
 });
 
@@ -93,19 +107,19 @@ describe("filterCandidates gates", () => {
         generatedAt: "2026-08-24T06:20:00.000Z",
         summaryGeneratedAt: "2026-08-24T06:00:00.000Z",
         entries: {
-            "alice|chess (no variants)": { ratingLow: 1190, n: 10 },
-            "bob|chess (no variants)": { ratingLow: 1100, n: 8 },
-            "carol|chess (no variants)": { ratingLow: 1000, n: 3 },
-            "dave|chess (no variants)": { ratingLow: 900, n: 2 },
-            "eve|chess (no variants)": { ratingLow: 800, n: 15 },
-            "frank|chess (no variants)": { ratingLow: 700, n: 12 },
-            "grace|chess (no variants)": { ratingLow: 600, n: 20 },
-            "henry|chess (no variants)": { ratingLow: 500, n: 11 },
-            "ivy|chess (no variants)": { ratingLow: 400, n: 16 },
-            "jack|chess (no variants)": { ratingLow: 300, n: 17 },
-            "kate|chess (no variants)": { ratingLow: 200, n: 18 },
-            "leo|chess (no variants)": { ratingLow: 100, n: 19 },
-            "mary|chess (no variants)": { ratingLow: 50, n: 20 },
+            "alice|chess (no variants)": snapshotEntry(1190, 10, 80),
+            "bob|chess (no variants)": snapshotEntry(1100, 8),
+            "carol|chess (no variants)": snapshotEntry(1000, 3, 120, true),
+            "dave|chess (no variants)": snapshotEntry(900, 2),
+            "eve|chess (no variants)": snapshotEntry(800, 15),
+            "frank|chess (no variants)": snapshotEntry(700, 12),
+            "grace|chess (no variants)": snapshotEntry(600, 20),
+            "henry|chess (no variants)": snapshotEntry(500, 11),
+            "ivy|chess (no variants)": snapshotEntry(400, 16),
+            "jack|chess (no variants)": snapshotEntry(300, 17),
+            "kate|chess (no variants)": snapshotEntry(200, 18),
+            "leo|chess (no variants)": snapshotEntry(100, 19),
+            "mary|chess (no variants)": snapshotEntry(50, 20),
         },
     };
 
@@ -139,6 +153,10 @@ describe("filterCandidates gates", () => {
             variants: [],
             oldRating: 1190,
             newRating: 1200,
+            oldRd: 80,
+            newRd: 60,
+            oldProvisional: false,
+            newProvisional: false,
             delta: 10,
         });
     });
@@ -175,11 +193,11 @@ describe("filterCandidates gates", () => {
             generatedAt: "2026-08-24T06:20:00.000Z",
             summaryGeneratedAt: "2026-08-24T06:00:00.000Z",
             entries: {
-                "alice|chess (no variants)": { ratingLow: 1000, n: 5 },
-                "alice|go (9x9|handicap)": { ratingLow: 1000, n: 5 },
-                "alice|go (19x19)": { ratingLow: 1000, n: 5 },
-                "alice|shogi (no variants)": { ratingLow: 1000, n: 5 },
-                "alice|xiangqi (no variants)": { ratingLow: 1000, n: 5 },
+                "alice|chess (no variants)": snapshotEntry(1000, 5),
+                "alice|go (9x9|handicap)": snapshotEntry(1000, 5),
+                "alice|go (19x19)": snapshotEntry(1000, 5),
+                "alice|shogi (no variants)": snapshotEntry(1000, 5),
+                "alice|xiangqi (no variants)": snapshotEntry(1000, 5),
             },
         };
         const diffRows = diffRatingChanges(multiPrev, [
@@ -204,6 +222,10 @@ describe("toNotificationItems", () => {
                 variants: ["9x9", "handicap"],
                 oldRating: 1100,
                 newRating: 1120,
+                oldRd: 90,
+                newRd: 70,
+                oldProvisional: true,
+                newProvisional: false,
                 delta: 20,
             },
         ], 1_700_000_000_000);
@@ -216,6 +238,10 @@ describe("toNotificationItems", () => {
             gameId: "",
             oldRating: 1100,
             newRating: 1120,
+            oldRd: 90,
+            newRd: 70,
+            oldProvisional: true,
+            newProvisional: false,
             delta: 20,
         });
         expect(items[0]?.expiresAt).toBeGreaterThan(1_700_000_000);
