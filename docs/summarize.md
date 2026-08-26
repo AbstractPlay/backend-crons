@@ -2,7 +2,7 @@
 
 The `summarize` Lambda reads `ALL.json` from the records bucket, computes site-wide statistics, and writes summary artifacts to the records bucket. It also writes full rivalry pair data (with user IDs) to the private ops bucket. It runs **daily at 06:00 UTC** so analytics stay current even mid-week as new games complete.
 
-Source: [`src/functions/summarize.ts`](../src/functions/summarize.ts). Pure helpers and unit tests: [`src/functions/summarizeHelpers.ts`](../src/functions/summarizeHelpers.ts), [`summarizeHelpers.test.ts`](../src/functions/summarizeHelpers.test.ts).
+Source: [`src/functions/summarize.ts`](../src/functions/summarize.ts). Pure helpers and unit tests: [`src/functions/summarizeHelpers.ts`](../src/functions/summarizeHelpers.ts), [`summarizeHelpers.test.ts`](../src/functions/summarizeHelpers.test.ts), [`summarizeSolo.ts`](../src/functions/summarizeSolo.ts), [`summarizeSolo.test.ts`](../src/functions/summarizeSolo.test.ts).
 
 ## Input
 
@@ -44,6 +44,8 @@ Typed as `StatSummary` in [`src/types/stats/StatSummary.ts`](../src/types/stats/
 | `recent` | Meta games with the most recent completions |
 | `hoursPer` | Structured pacing stats (see below) |
 | `metaStats` | Per-meta two-player stats including `drawRate` |
+| `soloMetaStats` | Per meta + variant solo aggregates (`attempts`, `uniquePlayers`, score medians, outcome breakdowns) |
+| `soloSeedBoards` | Per meta + variant + `challenge-seed` leaderboards (best attempt per user, with `attempts` count) |
 | `hMeta` | Per-meta h-index (breadth of participation) |
 | `geoStats` | Registered users by country (live `USERS` table) |
 | `activeGeoStats` | Players who completed a game in the past 30 days, by profile country |
@@ -73,6 +75,35 @@ For each meta game UID (and variant subgroup when multiple variant combinations 
 - Draw rate (`drawRate`)
 
 Only games with exactly two players and more than two moves are included.
+
+### Solo statistics (`soloMetaStats`, `soloSeedBoards`)
+
+1-player records (`header.players.length === 1`) are aggregated separately from two-player `metaStats` and ratings. Each archived solo run is its own row in `ALL.json` — retries on the same `challenge-seed` are kept and grouped at summarize time.
+
+**`soloMetaStats`** — keyed like ratings (`batchRatingGameLabel`, e.g. `puzzle (standard)`):
+
+| Field | Meaning |
+|-------|---------|
+| `attempts` | Total archived solo runs (includes retries) |
+| `uniquePlayers` | Distinct `userid` values |
+| `repeatAttemptRate` | `(attempts - uniquePlayers) / attempts` |
+| `outcomeTypes` | Counts by `header.outcome-type` (`binary`, `graded`, `score`, `timed`) |
+| `scoreMedianAllAttempts` | Median of all attempt scores |
+| `scoreMedianBestPerUser` | Median of each user's best score on that variant |
+| `passRateAllAttempts` / `passRateBestPerUser` | Binary outcomes only |
+| `gradeHistogramBestPerUser` | Grade counts from each user's best attempt |
+| `moveCountMedian` | Median round count across attempts |
+
+**`soloSeedBoards`** — one entry per meta + variant + `challenge-seed` (seeded runs only):
+
+| Field | Meaning |
+|-------|---------|
+| `rows` | Leaderboard sorted by `score-direction`; one row per user (best attempt) |
+| `rows[].attempts` | How many times that user played this seed |
+| `attempts`, `uniquePlayers` | Pool totals for the seed |
+| `scoreMedianAllAttempts`, `scoreMedianBestPerUser` | Same split as meta stats |
+
+Tie-break for best attempt: better score (per direction), then fewer moves, then earlier `date-end`.
 
 ### Timeout vs abandoned
 

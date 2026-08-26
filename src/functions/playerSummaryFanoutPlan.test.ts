@@ -68,6 +68,8 @@ const minimalSummary = (): StatSummary => ({
     recent: [],
     hoursPer: { mean: 0, median: 0, n: 0, winsorizedCount: 0, byWeek: [] },
     metaStats: {},
+    soloMetaStats: {},
+    soloSeedBoards: [],
     hMeta: [],
     geoStats: [],
     activeGeoStats: [],

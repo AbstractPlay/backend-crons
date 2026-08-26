@@ -50,6 +50,12 @@ import {
     scanRecord,
     type GameInfoFlags,
 } from "./summarizeScan.js";
+import {
+    accumulateSoloRecord,
+    buildSoloMetaStats,
+    buildSoloSeedBoards,
+    createSoloSummarizeState,
+} from "./summarizeSolo.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({ region: REGION });
@@ -140,6 +146,7 @@ export const handler: Handler = async () => {
         },
     };
     const scanState = createSummarizeScanState();
+    const soloState = createSoloSummarizeState();
 
     console.log("Streaming all game records from ALL.json");
     try {
@@ -147,7 +154,10 @@ export const handler: Handler = async () => {
             s3,
             REC_BUCKET,
             "ALL.json",
-            (rec) => scanRecord(scanState, rec, gameInfoByUid, recordGameIdFallback),
+            (rec) => {
+                scanRecord(scanState, rec, gameInfoByUid, recordGameIdFallback);
+                accumulateSoloRecord(soloState, rec, recordGameIdFallback);
+            },
         );
         if (count !== scanState.numGames) {
             throw new Error(`Stream count mismatch: ${count} vs ${scanState.numGames}`);
@@ -175,6 +185,8 @@ export const handler: Handler = async () => {
     const earliest = scanState.earliestMs ?? 0;
 
     const pieRates = buildPieRates(scanState);
+    const soloMetaStats = buildSoloMetaStats(soloState);
+    const soloSeedBoards = buildSoloSeedBoards(soloState);
     const playerCountMix = buildPlayerCountMix(scanState);
     const { numPlays, playWidth } = buildPlayStats(scanState);
     const playerStats = buildPlayerStats(scanState);
@@ -392,6 +404,8 @@ export const handler: Handler = async () => {
         hoursPer,
         recent: histograms.recent,
         metaStats,
+        soloMetaStats,
+        soloSeedBoards,
         geoStats,
         activeGeoStats,
         rivalries: publicRivalries,

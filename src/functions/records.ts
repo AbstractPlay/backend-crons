@@ -206,6 +206,7 @@ export const handler: Handler = async (event: any, context?: any) => {
         if ( (gdata.pieInvoked !== undefined) && (gdata.pieInvoked) ) {
             rec.header.pied = true;
         }
+        // Solo runs archive independently — multiple ALL.json rows per (userid, challenge-seed) are expected.
         allRecs.push(rec);
         pushToMap(metaRecs, gdata.metaGame, rec);
         for (const p of gdata.players) {

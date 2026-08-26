@@ -18,6 +18,7 @@ import {
     GlickoMeta,
 } from "./index.js";
 import type { PlayerTimeoutStats } from "./PlayerTimeoutStats.js";
+import type { SoloMetaStats, SoloSeedBoard } from "./SoloStats.js";
 export type StatSummary = {
     numGames: number;
     numPlayers: number;
@@ -67,6 +68,10 @@ export type StatSummary = {
     metaStats: {
         [k: string]: TwoPlayerStats;
     }
+    soloMetaStats: {
+        [k: string]: SoloMetaStats;
+    };
+    soloSeedBoards: SoloSeedBoard[];
     hMeta: UserNumber[];
     geoStats: GeoStats[];
     activeGeoStats: GeoStats[];
