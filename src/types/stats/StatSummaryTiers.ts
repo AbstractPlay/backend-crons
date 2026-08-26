@@ -1,6 +1,7 @@
 import type { UserGameRating, UserRating, UserNumber, UserNumList, GameNumber, GameNumList } from "./index.js";
 import type { GlickoByGameRow, GlickoSiteEntry, GlickoMeta } from "./GlickoStats.js";
 import type { PlayerTimeoutStats } from "./PlayerTimeoutStats.js";
+import type { SoloMetaStats, SoloSeedBoard } from "./SoloStats.js";
 import type {
     TwoPlayerStats,
     GeoStats,
@@ -44,6 +45,10 @@ export type StatSummarySite = {
     metaStats: {
         [k: string]: TwoPlayerStats;
     };
+    soloMetaStats: {
+        [k: string]: SoloMetaStats;
+    };
+    soloSeedBoards: SoloSeedBoard[];
     plays: {
         total: GameNumber[];
         width: GameNumber[];

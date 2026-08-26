@@ -116,6 +116,8 @@ const minimalStatSummary = (overrides: Partial<StatSummary> = {}): StatSummary =
     recent: [],
     hoursPer: emptyHoursPer(),
     metaStats: {},
+    soloMetaStats: {},
+    soloSeedBoards: [],
     hMeta: [],
     geoStats: [],
     activeGeoStats: [],

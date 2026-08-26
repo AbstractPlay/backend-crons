@@ -28,4 +28,11 @@ export type { MetaPieStats } from "./MetaPieStats.js";
 export type { MetaPlayerCountMix } from "./MetaPlayerCountMix.js";
 export type { RivalryPair, IdentifiedRivalryPair, RivalriesFull, AnonymizedRivalry } from "./RivalryStats.js";
 export type { SeasonalityStats } from "./SeasonalityStats.js";
+export type {
+    SoloMetaStats,
+    SoloSeedBoard,
+    SoloSeedBoardRow,
+    SoloOutcomeType,
+    ScoreDirection,
+} from "./SoloStats.js";
 
