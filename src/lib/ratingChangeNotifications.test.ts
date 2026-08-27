@@ -7,6 +7,7 @@ import {
     buildRatingChangeSnapshot,
     diffRatingChanges,
     filterCandidates,
+    filterCandidatesByInAppPrefs,
     MIN_RATING_DELTA,
     toNotificationItems,
     type RatingNotificationSnapshot,
@@ -209,6 +210,43 @@ describe("filterCandidates gates", () => {
         ]);
         const { candidates } = filterCandidates(diffRows, new Set(), constants);
         expect(candidates).toHaveLength(5);
+    });
+});
+
+describe("filterCandidatesByInAppPrefs", () => {
+    const candidate = {
+        userId: "alice",
+        gameLabel: "chess (no variants)",
+        metaGameUid: "chess",
+        variants: [] as string[],
+        oldRating: 1000,
+        newRating: 1020,
+        oldRd: 80,
+        newRd: 70,
+        oldProvisional: false,
+        newProvisional: false,
+        delta: 20,
+    };
+
+    it("skips users who disabled ratingChange in-app notifications", () => {
+        const settings = new Map([
+            ["alice", { all: { inAppNotifications: { ratingChange: false } } }],
+        ]);
+        const { candidates, skippedInAppPrefs } = filterCandidatesByInAppPrefs(
+            [candidate],
+            settings,
+        );
+        expect(candidates).toHaveLength(0);
+        expect(skippedInAppPrefs).toBe(1);
+    });
+
+    it("keeps users with default or enabled prefs", () => {
+        const { candidates, skippedInAppPrefs } = filterCandidatesByInAppPrefs(
+            [candidate],
+            new Map(),
+        );
+        expect(candidates).toHaveLength(1);
+        expect(skippedInAppPrefs).toBe(0);
     });
 });
 
