@@ -10,6 +10,7 @@
     "build-ts": "tsc",
     "build": "node bin/check-ci-deps.mjs && eslint",
     "build:layers": "node scripts/build-layers.cjs",
+    "test:layers": "npm run build:layers && node scripts/smoke-layer-modules.cjs",
     "run-records-pipeline": "node bin/run-records-pipeline.mjs",
     "enable-records-cdn-compress": "node bin/enable-records-cdn-compress.mjs",
     "deploy-dev": "serverless deploy",
@@ -66,6 +67,7 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
+    "nanoid": "3.3.11",
     "@abstractplay/renderer": "1.0.0-ci-32780767588.0"
   }
 }

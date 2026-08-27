@@ -106,12 +106,14 @@ function detectRendererOnly(pkgJson, flag) {
 function resolveVersions({ stage, rendererOnly, forTests, pkgJson }) {
   const dispatchGameslib = process.env.AP_GAMESLIB_VERSION?.trim() || null;
   const dispatchRenderer = process.env.AP_RENDERER_VERSION?.trim() || null;
+  const dispatchRecranks = process.env.AP_RECRANKS_VERSION?.trim() || null;
   const manifest = readManifest(stage);
   const onlyRenderer = detectRendererOnly(pkgJson, rendererOnly);
   const manifestName = manifestLabel(stage);
 
   let gameslib = dispatchGameslib || manifest?.gameslib || null;
   let renderer = dispatchRenderer || manifest?.renderer || null;
+  let recranks = dispatchRecranks || manifest?.recranks || null;
   let source = manifestName;
 
   if (forTests) {
@@ -120,7 +122,7 @@ function resolveVersions({ stage, rendererOnly, forTests, pkgJson }) {
     console.log(
       `Installing gameslib for tests: @${gameslib} (full registry, not synced to package.json)`,
     );
-  } else if (dispatchGameslib || dispatchRenderer) {
+  } else if (dispatchGameslib || dispatchRenderer || dispatchRecranks) {
     source = process.env.AP_SOURCE || "repository_dispatch";
   }
 
@@ -140,7 +142,15 @@ function resolveVersions({ stage, rendererOnly, forTests, pkgJson }) {
     }
   }
 
-  return { stage, gameslib, renderer, rendererOnly: onlyRenderer, source, forTests };
+  if (!onlyRenderer && !recranks) {
+    recranks = pkgJson.dependencies?.["@abstractplay/recranks"] || null;
+    if (!recranks) {
+      console.warn(`No recranks version resolved; falling back to @${tag}`);
+      recranks = tag;
+    }
+  }
+
+  return { stage, gameslib, renderer, recranks, rendererOnly: onlyRenderer, source, forTests };
 }
 
 function syncPackageJson(pkgJson, versions) {
@@ -152,6 +162,10 @@ function syncPackageJson(pkgJson, versions) {
 
   if (!versions.rendererOnly && versions.gameslib && !versions.forTests) {
     pkgJson.dependencies["@abstractplay/gameslib"] = versions.gameslib;
+  }
+
+  if (!versions.rendererOnly && versions.recranks && !versions.forTests) {
+    pkgJson.dependencies["@abstractplay/recranks"] = versions.recranks;
   }
 
   const hasDirectRenderer =
@@ -172,6 +186,9 @@ function installPackages(versions) {
   const pkgs = [`@abstractplay/renderer@${versions.renderer}`];
   if (!versions.rendererOnly && versions.gameslib) {
     pkgs.unshift(`@abstractplay/gameslib@${versions.gameslib}`);
+  }
+  if (!versions.rendererOnly && versions.recranks) {
+    pkgs.push(`@abstractplay/recranks@${versions.recranks}`);
   }
   console.log(`Installing: ${pkgs.join(" ")}`);
   execSync(`npm install --save-exact ${pkgs.join(" ")}`, {
@@ -207,6 +224,16 @@ function verifyInstalledVersions(versions) {
       );
     }
     console.log(`@abstractplay/gameslib@${installedGameslib}`);
+  }
+
+  if (!versions.rendererOnly && versions.recranks) {
+    const installedRecranks = getInstalledVersion("@abstractplay/recranks");
+    if (!versionMatches(installedRecranks, versions.recranks)) {
+      throw new Error(
+        `Recranks version mismatch: expected ${versions.recranks}, got ${installedRecranks}`,
+      );
+    }
+    console.log(`@abstractplay/recranks@${installedRecranks}`);
   }
 }
 
@@ -290,6 +317,9 @@ function writeCiDeps(versions) {
   if (!versions.rendererOnly && versions.gameslib) {
     data.gameslib = versions.gameslib;
   }
+  if (!versions.rendererOnly && versions.recranks) {
+    data.recranks = versions.recranks;
+  }
   writeJson(outPath, data);
 }
 
@@ -301,6 +331,9 @@ function writeGithubOutput(versions) {
   fs.appendFileSync(outFile, `renderer_version=${versions.renderer}\n`);
   if (versions.gameslib) {
     fs.appendFileSync(outFile, `gameslib_version=${versions.gameslib}\n`);
+  }
+  if (versions.recranks) {
+    fs.appendFileSync(outFile, `recranks_version=${versions.recranks}\n`);
   }
 }
 
