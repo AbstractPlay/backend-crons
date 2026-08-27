@@ -3,6 +3,10 @@ import type { StatSummaryRatings } from "types/stats/StatSummaryTiers.js";
 import type { UserGameRating } from "types/stats/UserGameRating.js";
 import { RATINGS_NOTIFICATION_SNAPSHOT_KEY } from "../constants/recordsBucket.js";
 import { GLICKO_PRIOR_RATING_LOW, defaultGlickoPrior, parseBatchRatingGameLabel } from "./batchRatings.js";
+import {
+    wantsInAppNotification,
+    type InAppNotificationUserSettings,
+} from "./inAppNotificationPrefs.js";
 
 export const MIN_RATING_DELTA = 5;
 export const NOTIFICATION_INITIAL_TTL_DAYS = 180;
@@ -46,6 +50,7 @@ export type RatingChangeFilterStats = {
     skippedBelowThreshold: number;
     skippedProvisional: number;
     skippedBot: number;
+    skippedInAppPrefs: number;
 };
 
 export type RatingChangeNotificationItem = {
@@ -182,6 +187,7 @@ export function filterCandidates(
         skippedBelowThreshold: 0,
         skippedProvisional: 0,
         skippedBot: 0,
+        skippedInAppPrefs: 0,
     };
     const filtered: RatingChangeCandidate[] = [];
 
@@ -218,6 +224,25 @@ export function filterCandidates(
     }
 
     return { candidates: filtered, stats };
+}
+
+export function filterCandidatesByInAppPrefs(
+    candidates: RatingChangeCandidate[],
+    userSettings: ReadonlyMap<string, InAppNotificationUserSettings | undefined>,
+): { candidates: RatingChangeCandidate[]; skippedInAppPrefs: number } {
+    const filtered: RatingChangeCandidate[] = [];
+    let skippedInAppPrefs = 0;
+
+    for (const candidate of candidates) {
+        const settings = userSettings.get(candidate.userId);
+        if (!wantsInAppNotification(settings, "ratingChange")) {
+            skippedInAppPrefs += 1;
+            continue;
+        }
+        filtered.push(candidate);
+    }
+
+    return { candidates: filtered, skippedInAppPrefs };
 }
 
 export function toNotificationItems(

@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
     BatchWriteCommand,
+    BatchGetCommand,
     DynamoDBDocumentClient,
     QueryCommand,
     type QueryCommandInput,
@@ -15,12 +16,14 @@ import {
     buildRatingChangeSnapshot,
     diffRatingChanges,
     filterCandidates,
+    filterCandidatesByInAppPrefs,
     ratingChangeConstantsFromEnv,
     toNotificationItems,
     type RatingChangeNotificationItem,
     type RatingChangeFilterStats,
     type RatingNotificationSnapshot,
 } from "../lib/ratingChangeNotifications.js";
+import type { InAppNotificationUserSettings } from "../lib/inAppNotificationPrefs.js";
 import type { StatSummaryRatings } from "types/stats/StatSummaryTiers.js";
 import { getRecordsJson, putRecordsJson, tryGetRecordsJson } from "../utils/recordsJson.js";
 
@@ -109,6 +112,37 @@ async function loadBotIds(tableName: string): Promise<Set<string>> {
     return botIds;
 }
 
+async function loadInAppSettingsForUsers(
+    tableName: string,
+    userIds: string[],
+): Promise<Map<string, InAppNotificationUserSettings | undefined>> {
+    const uniqueIds = [...new Set(userIds)];
+    const settings = new Map<string, InAppNotificationUserSettings | undefined>();
+    if (uniqueIds.length === 0) {
+        return settings;
+    }
+
+    for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+        const chunk = uniqueIds.slice(offset, offset + 100);
+        const result = await ddbDocClient.send(new BatchGetCommand({
+            RequestItems: {
+                [tableName]: {
+                    Keys: chunk.map(sk => ({ pk: "USER", sk })),
+                    ProjectionExpression: "sk, settings",
+                },
+            },
+        }));
+        for (const item of result.Responses?.[tableName] ?? []) {
+            const userId = item.sk;
+            if (typeof userId === "string") {
+                settings.set(userId, item.settings as InAppNotificationUserSettings | undefined);
+            }
+        }
+    }
+
+    return settings;
+}
+
 export type RatingChangeNotificationsMetrics = {
     summaryGeneratedAt: string;
     notificationsWritten: number;
@@ -134,6 +168,7 @@ export const handler: Handler = async (): Promise<RatingChangeNotificationsMetri
         skippedBelowThreshold: 0,
         skippedProvisional: 0,
         skippedBot: 0,
+        skippedInAppPrefs: 0,
     };
 
     const priorSnapshotResult = await tryGetRecordsJson<RatingNotificationSnapshot>(
@@ -171,7 +206,16 @@ export const handler: Handler = async (): Promise<RatingChangeNotificationsMetri
     const diffRows = diffRatingChanges(priorSnapshot, summary.ratings.highest);
     const botIds = await loadBotIds(tableName);
     const { candidates, stats } = filterCandidates(diffRows, botIds, constants);
-    const notificationItems = toNotificationItems(candidates);
+    const userSettings = await loadInAppSettingsForUsers(
+        tableName,
+        candidates.map(candidate => candidate.userId),
+    );
+    const { candidates: inAppCandidates, skippedInAppPrefs } = filterCandidatesByInAppPrefs(
+        candidates,
+        userSettings,
+    );
+    stats.skippedInAppPrefs = skippedInAppPrefs;
+    const notificationItems = toNotificationItems(inAppCandidates);
 
     if (notificationItems.length > 0) {
         await sendBatchWriteWithRetry(tableName, notificationItems);
@@ -184,7 +228,7 @@ export const handler: Handler = async (): Promise<RatingChangeNotificationsMetri
         `rating-change-notifications: wrote ${notificationItems.length} notifications, `
         + `snapshot ${snapshotBytes} bytes; skipped noActivity=${stats.skippedNoActivity} `
         + `belowThreshold=${stats.skippedBelowThreshold} provisional=${stats.skippedProvisional} `
-        + `bot=${stats.skippedBot}`,
+        + `bot=${stats.skippedBot} inAppPrefs=${stats.skippedInAppPrefs}`,
     );
 
     return {
