@@ -29,6 +29,11 @@
     "url": "https://github.com/AbstractPlay/backend-crons/issues"
   },
   "homepage": "https://github.com/AbstractPlay/backend-crons#readme",
+  "engines": {
+    "node": ">=24",
+    "npm": "11.6.2"
+  },
+  "packageManager": "npm@11.6.2",
   "dependencies": {
     "@abstractplay/gameslib": "1.0.0-ci-32781458213.0",
     "@abstractplay/recranks": "1.0.0-ci-32677322618.0",
@@ -56,7 +61,6 @@
     "esbuild": "^0.27.1",
     "eslint": "^8.39.0",
     "fs-extra": "^11.3.4",
-    "npm": "^9.6.6",
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0",
     "rimraf": "^6.1.2",
