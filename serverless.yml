@@ -19,7 +19,7 @@ custom:
     outExtension:
       ".js": ".mjs"
     platform: "node"
-    target: "node20"
+    target: "node24"
     external:
       - "@abstractplay/gameslib"
       - "@abstractplay/recranks"
@@ -48,7 +48,7 @@ plugins:
 
 provider:
   name: aws
-  runtime: nodejs20.x
+  runtime: nodejs24.x
   versionFunctions: false
   stage: ${opt:stage, "dev"}
   profile: ${param:profile}
@@ -372,5 +372,5 @@ layers:
     name: abstractplay-gameslib-${sls:stage}
     description: "Layer for @abstractplay/gameslib"
     compatibleRuntimes:
-      - nodejs20.x
+      - nodejs24.x
     retain: false

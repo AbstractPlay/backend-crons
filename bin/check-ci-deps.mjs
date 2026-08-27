@@ -37,10 +37,18 @@ const pkgJsonPath = path.join(ROOT, "package.json");
 if (fs.existsSync(pkgJsonPath)) {
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
   const usesGameslib = "@abstractplay/gameslib" in (pkgJson.dependencies ?? {});
+  const usesRecranks = "@abstractplay/recranks" in (pkgJson.dependencies ?? {});
   if (usesGameslib) {
     for (const stage of stages) {
       if (!manifests[stage].gameslib) {
         fail(`ci-deps.${stage}.json must include gameslib for this consumer`);
+      }
+    }
+  }
+  if (usesRecranks) {
+    for (const stage of stages) {
+      if (!manifests[stage].recranks) {
+        fail(`ci-deps.${stage}.json must include recranks for this consumer`);
       }
     }
   }
