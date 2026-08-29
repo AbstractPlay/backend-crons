@@ -12,4 +12,10 @@ describe("wantsInAppNotification", () => {
             all: { inAppNotifications: { ratingChange: false } },
         }, "ratingChange")).toBe(false);
     });
+
+    it("returns false when tournamentStart is disabled", () => {
+        expect(wantsInAppNotification({
+            all: { inAppNotifications: { tournamentStart: false } },
+        }, "tournamentStart")).toBe(false);
+    });
 });

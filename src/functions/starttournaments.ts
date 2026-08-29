@@ -14,6 +14,8 @@ import it from '../locales/it/apback.json';
 import { Handler } from "aws-lambda";
 import { assignTournamentPlayerRatings } from "../lib/batchRatings.js";
 import { enqueueGameStartNotifications } from "../lib/gameStartNotifications.js";
+import { enqueueTournamentStartNotifications } from "../lib/tournamentStartNotifications.js";
+import type { InAppNotificationUserSettings } from "../lib/inAppNotificationPrefs.js";
 import {
   canonicalPlayerPair,
   ensureTournamentGameLink,
@@ -749,6 +751,26 @@ async function startTournament(
                 }
             }
         }
+    }
+    try {
+      const settingsByUserId = new Map<string, InAppNotificationUserSettings | undefined>(
+        playersFull2.map(p => [p.id, p.settings as InAppNotificationUserSettings | undefined]),
+      );
+      await enqueueTournamentStartNotifications(
+        ddbDocClient,
+        tableName,
+        {
+          id: tournament.id,
+          metaGame: tournament.metaGame,
+          number: tournament.number,
+          variants: tournament.variants,
+        },
+        playersFull2.map(p => p.id),
+        settingsByUserId,
+      );
+    } catch (notifyErr) {
+      logGetItemError(notifyErr);
+      console.log(`Failed to enqueue tournament start in-app notifications for ${tournament.id}`);
     }
     returnvalue = 1;
     } catch (error) {
