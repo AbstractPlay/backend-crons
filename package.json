@@ -35,7 +35,7 @@
   },
   "packageManager": "npm@11.6.2",
   "dependencies": {
-    "@abstractplay/gameslib": "1.0.0-ci-33324159274.0",
+    "@abstractplay/gameslib": "1.0.0-ci-33331558128.0",
     "@abstractplay/recranks": "1.0.0-ci-32677322618.0",
     "@abstractplay/renderer": "1.0.0-ci-33323903690.0",
     "@aws-sdk/client-dynamodb": "^3.321.1",
