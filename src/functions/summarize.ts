@@ -8,7 +8,7 @@ import { isoToCountryCode } from "../utils/isoToCountryCode.js";
 import { streamJsonArrayFromS3 } from "../utils/streamJsonArray.js";
 import { alignWeeklyActiveMovers } from "../utils/moveSeasonality.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
-import { gameinfo } from "../gameslibRequire.js";
+import { gameinfo } from "@abstractplay/gameslib";
 import { buildPlayerCountsByUid, compareBatchRatings } from "../lib/batchRatings.js";
 import type { UserRating, StatSummary, RivalriesFull } from "types/index.js";
 import type { UserGameRating } from "types/index.js";
