@@ -1,7 +1,7 @@
 {
   "renderer": "1.0.0-ci-33342507463.0",
-  "updatedAt": "2026-08-30T23:48:29.738Z",
-  "source": "gameslib-ci-33342600344",
+  "updatedAt": "2026-08-30T23:52:55.950Z",
+  "source": "ci-deps.prod.json",
   "gameslib": "1.0.0-ci-33342600344.0",
   "recranks": "1.0.0-ci-32677322618.0"
 }
