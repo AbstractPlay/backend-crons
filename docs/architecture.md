@@ -31,7 +31,7 @@ See [Records pipeline](/crons/pipeline/) and [Functions reference](/crons/functi
 
 ## Gameslib Lambda layer
 
-Functions that call `@abstractplay/gameslib` attach the `abstractplayGameslib` layer, built by [`scripts/build-layers.cjs`](https://github.com/AbstractPlay/backend-crons/blob/develop/scripts/build-layers.cjs) before packaging:
+Functions that call `@abstractplay/gameslib` attach the `abstractplayGameslib` layer, built by [`scripts/build-layers.mjs`](https://github.com/AbstractPlay/backend-crons/blob/develop/scripts/build-layers.mjs) before packaging:
 
 - Bundles `@abstractplay/gameslib` and `@abstractplay/recranks` into `.serverless/layers/abstractplay-gameslib`
 - Strips `@abstractplay/renderer` (transitive dep, not needed at runtime)
@@ -91,7 +91,7 @@ src/functions/     Lambda handlers
 src/types/         Record and StatSummary TypeScript types
 src/locales/       i18n strings (en, fr, it) for tournament emails
 src/utils/         Shared utilities (e.g. isoToCountryCode, cooccurPmi)
-scripts/           build-layers.cjs
+scripts/           build-layers.mjs
 serverless.yml     Infrastructure and schedules
 ```
 
