@@ -89,7 +89,7 @@ jobs:
     - name: Test
       run: npm test
 
-    - name: Test Lambda layers (gameslib init)
+    - name: Test Lambda layers
       run: npm run test:layers
 
     - name: Configure AWS credentials
