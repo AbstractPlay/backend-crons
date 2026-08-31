@@ -1,9 +1,13 @@
 import { S3Client, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, type _Object } from "@aws-sdk/client-s3";
 import { Handler } from "aws-lambda";
 import { GameFactory, addResource, gameinfo, type APGamesInformation } from "@abstractplay/gameslib";
+import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { type: "json" };
+import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
+import type { APRenderRep } from "@abstractplay/renderer";
 import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { ReservoirSampler } from "../utils/ReservoirSampler.js";
+import { resolveRenderLabels } from "../utils/resolveRenderLabels.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
 import enBack from "../locales/en/apback.json";
@@ -43,7 +47,9 @@ export const handler: Handler = async () => {
             if (!i18nInstance.isInitialized) {
                 throw new Error("i18n is not initialized where it should be!");
             }
-            addResource("en");
+            const gamesI18n = addResource("en", undefined, {
+                bundles: { apgames: enApgames, apresults: enApresults },
+            });
 
             const gameInfoProd = ([...gameinfo.values()] as APGamesInformation[]).filter(
                 (rec) => !rec.flags.includes("experimental"),
@@ -168,7 +174,7 @@ export const handler: Handler = async () => {
             }
             console.log("GAME records processed");
 
-            const allRecs = new Map<string, string>();
+            const allRecs = new Map<string, APRenderRep>();
             for (const [meta, entry] of samplerMap.entries()) {
                 const active = entry.active.getSample();
                 let rec: GameRec;
@@ -193,8 +199,11 @@ export const handler: Handler = async () => {
                         `Error instantiating the following game record AFTER STRIPPING:\n${rec}`,
                     );
                 }
-                const json = g.render({});
-                allRecs.set(meta, JSON.stringify(json));
+                const rep = g.render({}) as APRenderRep;
+                const resolved = resolveRenderLabels(rep, rec.players, (key, params) =>
+                    String(gamesI18n.t(key, params ?? {})),
+                );
+                allRecs.set(meta, resolved);
             }
             console.log(`Generated ${allRecs.size} thumbnails`);
 
@@ -206,11 +215,12 @@ export const handler: Handler = async () => {
                 );
             }
 
-            for (const [meta, json] of allRecs.entries()) {
+            for (const [meta, rep] of allRecs.entries()) {
+                const body = JSON.stringify(rep);
                 let cmd = new PutObjectCommand({
                     Bucket: REC_BUCKET,
                     Key: `${meta}.json`,
-                    Body: JSON.stringify(json),
+                    Body: body,
                     CacheControl: THUMBNAIL_CACHE_CONTROL,
                     ContentType: "application/json",
                 });
@@ -222,7 +232,7 @@ export const handler: Handler = async () => {
                     cmd = new PutObjectCommand({
                         Bucket: RENDER_BUCKET,
                         Key: `${meta}.json`,
-                        Body: JSON.stringify(json),
+                        Body: body,
                         CacheControl: THUMBNAIL_CACHE_CONTROL,
                         ContentType: "application/json",
                     });
