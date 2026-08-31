@@ -11,6 +11,8 @@ custom:
     dev: "records.abstractplay.com"
   dumpbucket: "abstractplay-db-dump"
   opsbucket: "private-ops-153672715141-us-east-1-an"
+  renderBucketName: "thumbnails-prerender-${self:provider.stage}"
+  rendererCdnUrl: "https://renderer.dev.abstractplay.com/APRender.min.js"
   esbuild:
     tsconfig: "./tsconfig.json"
     bundle: true
@@ -23,6 +25,9 @@ custom:
     external:
       - "@abstractplay/gameslib"
       - "@abstractplay/recranks"
+      - "@abstractplay/renderer"
+      - "@sparticuz/chromium"
+      - "puppeteer-core"
       - "@aws-sdk/*"
       - "@smithy/*"
       - "buffer"
@@ -32,6 +37,9 @@ custom:
     exclude:
       - "@abstractplay/gameslib"
       - "@abstractplay/recranks"
+      - "@abstractplay/renderer"
+      - "@sparticuz/chromium"
+      - "puppeteer-core"
   scriptable:
     hooks:
       before:package:createDeploymentArtifacts: npm run build:layers
@@ -87,12 +95,14 @@ provider:
             - "arn:aws:s3:::abstractplay-db-dump"
             - "arn:aws:s3:::records.abstractplay.com"
             - "arn:aws:s3:::${self:custom.opsbucket}"
+            - "arn:aws:s3:::${self:custom.renderBucketName}"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
           Resource:
             - "arn:aws:s3:::abstractplay-db-dump/*"
             - "arn:aws:s3:::records.abstractplay.com/*"
+            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
@@ -107,6 +117,7 @@ provider:
             - "arn:aws:s3:::thumbnails.abstractplay.com/*"
             - "arn:aws:s3:::abstractplay-db-dump/*"
             - "arn:aws:s3:::${self:custom.opsbucket}/*"
+            - "arn:aws:s3:::${self:custom.renderBucketName}/*"
 
 functions:
   dumpdb:
@@ -266,6 +277,57 @@ functions:
           # 6am UTC daily (giving plenty of time for the record generation to complete)
           schedule: cron(0 6 * * ? *)
 
+  thumbnails:
+    handler: src/functions/thumbnails.handler
+    description: Generates random thumbnails daily from latest DB dump
+    timeout: 300
+    memorySize: 5120
+    logRetentionInDays: 7
+    environment:
+      RENDER_BUCKET: ${self:custom.renderBucketName}
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-thumbnails
+          description: Generates random thumbnails daily
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 6am UTC daily (independent of summarize; reads ION dump directly)
+          schedule: cron(0 6 * * ? *)
+
+  s3-to-sqs:
+    handler: src/functions/s3-to-sqs.handler
+    description: Triggered when new objects are written to prerender S3, pushes job info to SQS
+    timeout: 30
+    memorySize: 512
+    logRetentionInDays: 7
+    environment:
+      SQS_URL: !Ref RenderQueue
+      TARGET_QUEUE_ARN: !GetAtt RenderQueue.Arn
+      RENDER_BUCKET: ${self:custom.renderBucketName}
+    events:
+      - s3:
+          bucket: ${self:custom.renderBucketName}
+          existing: true
+          event: s3:ObjectCreated:*
+
+  sqs-to-render:
+    handler: src/functions/sqs-to-render.handler
+    description: Consumes SQS messages, renders SVG, writes to output bucket, deletes prerender original
+    timeout: 300
+    memorySize: 2048
+    logRetentionInDays: 7
+    environment:
+      RENDER_BUCKET: ${self:custom.renderBucketName}
+      RENDERER_CDN_URL: ${self:custom.rendererCdnUrl}
+    layers:
+      - !Ref AbstractplayChromiumLambdaLayer
+      - !Ref AbstractplayGameslibLambdaLayer
+      - !Ref AbstractplayRendererLambdaLayer
+    events:
+      - sqs:
+          arn: !GetAtt RenderQueue.Arn
+
   player-summary-fanout:
     handler: src/functions/player-summary-fanout.handler
     description: Enqueues per-player summary slice writes after summarize
@@ -366,11 +428,42 @@ resources:
           deadLetterTargetArn: !GetAtt PlayerSummaryDeadLetterQueue.Arn
           maxReceiveCount: 3
 
+    RenderQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: abstractplay-render-queue-${self:provider.stage}
+        VisibilityTimeout: 900
+        MessageRetentionPeriod: 86400
+
+  Outputs:
+    RenderQueueArn:
+      Value: !GetAtt RenderQueue.Arn
+      Export:
+        Name: RenderQueueArn-${self:provider.stage}
+    RenderQueueUrl:
+      Value: !Ref RenderQueue
+      Export:
+        Name: RenderQueueUrl-${self:provider.stage}
+
 layers:
   abstractplayGameslib:
     path: .serverless/layers/abstractplay-gameslib
     name: abstractplay-gameslib-${sls:stage}
     description: "Layer for @abstractplay/gameslib"
+    compatibleRuntimes:
+      - nodejs24.x
+    retain: false
+  abstractplayChromium:
+    path: .serverless/layers/abstractplay-chromium
+    name: abstractplay-chromium-${sls:stage}
+    description: "Layer for puppeteer-core and @sparticuz/chromium"
+    compatibleRuntimes:
+      - nodejs24.x
+    retain: false
+  abstractplayRenderer:
+    path: .serverless/layers/abstractplay-renderer
+    name: abstractplay-renderer-${sls:stage}
+    description: "Layer for @abstractplay/renderer and its runtime dependencies"
     compatibleRuntimes:
       - nodejs24.x
     retain: false
