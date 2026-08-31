@@ -21,6 +21,20 @@ const genPrefix = customAlphabet(
 const s3 = new S3Client({});
 const THUMB_BUCKET = "thumbnails.abstractplay.com";
 
+const GOOGLE_FONTS_STYLESHEET =
+    "https://fonts.googleapis.com/css2?family=Cardo:wght@400;700&family=Josefin+Sans:wght@400;600;700&display=swap";
+
+const RENDER_PAGE_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <link href="${GOOGLE_FONTS_STYLESHEET}" rel="stylesheet">
+  <style>
+    body, svg, .aprender-area-label { font-family: "Josefin Sans", sans-serif; }
+  </style>
+</head>
+<body><div id="drawing"></div></body>
+</html>`;
+
 function rendererScriptUrl(): string {
     const url = process.env.RENDERER_CDN_URL;
     if (!url) {
@@ -107,8 +121,9 @@ export const handler: SQSHandler = async (event) => {
         const renderScriptUrl = rendererScriptUrl();
         for (const [name, context] of contexts.entries()) {
             console.log("Initializing page");
-            await page.setContent(`<div id="drawing"></div>`);
+            await page.setContent(RENDER_PAGE_HTML, { waitUntil: "load" });
             await page.addScriptTag({ url: renderScriptUrl });
+            await page.evaluate(() => document.fonts.ready);
             console.log("Evaluating the render itself");
             await page.evaluate((pfx, colourContext, renderRep) => {
                 const opts: IRenderOptions = {
