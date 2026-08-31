@@ -35,18 +35,20 @@
   },
   "packageManager": "npm@11.6.2",
   "dependencies": {
-    "@abstractplay/gameslib": "1.0.0-ci-33331558128.0",
+    "@abstractplay/gameslib": "1.0.0-ci-33341834541.0",
     "@abstractplay/recranks": "1.0.0-ci-32677322618.0",
-    "@abstractplay/renderer": "1.0.0-ci-33323903690.0",
+    "@abstractplay/renderer": "1.0.0-ci-33337357418.0",
     "@aws-sdk/client-dynamodb": "^3.321.1",
     "@aws-sdk/client-s3": "^3.374.0",
     "@aws-sdk/client-ses": "^3.321.1",
     "@aws-sdk/client-sqs": "^3.374.0",
     "@aws-sdk/lib-dynamodb": "^3.321.1",
+    "@sparticuz/chromium": "^143.0.0",
     "aws-lambda": "^1.0.7",
     "fflate": "^0.8.1",
     "i18next": "^22.4.15",
     "ion-js": "^5.2.0",
+    "puppeteer-core": "^24.33.0",
     "stream-json": "^1.8.0"
   },
   "devDependencies": {
@@ -70,6 +72,6 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "@abstractplay/renderer": "1.0.0-ci-33323903690.0"
+    "@abstractplay/renderer": "1.0.0-ci-33337357418.0"
   }
 }
