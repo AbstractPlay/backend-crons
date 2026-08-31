@@ -59,7 +59,7 @@ Most batch functions expect prod S3 buckets and a completed DB dump. For code ch
 src/functions/     Lambda handlers (one file per function)
 src/types/         Shared TypeScript types
 src/locales/       apback i18n strings
-scripts/           build-layers.cjs
+scripts/           build-layers.mjs
 serverless.yml     Function definitions and schedules
 docs/              Developer documentation (published at /crons/)
 ```

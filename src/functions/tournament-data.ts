@@ -4,9 +4,6 @@ import { S3Client, GetObjectCommand, ListObjectsV2Command, type _Object } from "
 import { Handler } from "aws-lambda";
 import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const deepclone = require("rfdc/default");
-
 import { putRecordsJson } from "../utils/recordsJson.js";
 
 const REGION = "us-east-1";
@@ -195,7 +192,7 @@ export const handler: Handler = async (event: any, context?: any) => {
     // for each possTourney, merge matching players, and add to overall tourneys list
     for (const tourney of possTourneys) {
         const players = possPlayers.filter(rec => rec.sk.startsWith(tourney.id));
-        const newrec = deepclone(tourney) as Tournament;
+        const newrec = structuredClone(tourney) as Tournament;
         newrec.players = players;
         tourneys.push(newrec);
     }

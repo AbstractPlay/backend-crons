@@ -1,4 +1,4 @@
-import { gameinfo } from "../gameslibRequire.js";
+import { gameinfo } from "@abstractplay/gameslib";
 
 export function hasUnratedVariant(metaGame: string, variantUids: string[]): boolean {
     const variants = gameinfo.get(metaGame)?.variants;

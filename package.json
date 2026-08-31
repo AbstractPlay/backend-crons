@@ -9,8 +9,8 @@
     "test:watch": "vitest",
     "build-ts": "tsc",
     "build": "node bin/check-ci-deps.mjs && eslint",
-    "build:layers": "node scripts/build-layers.cjs",
-    "test:layers": "npm run build:layers && node scripts/smoke-layer-modules.cjs",
+    "build:layers": "node scripts/build-layers.mjs",
+    "test:layers": "npm run build:layers && node scripts/smoke-layer-modules.mjs",
     "run-records-pipeline": "node bin/run-records-pipeline.mjs",
     "enable-records-cdn-compress": "node bin/enable-records-cdn-compress.mjs",
     "deploy-dev": "serverless deploy",
@@ -35,9 +35,9 @@
   },
   "packageManager": "npm@11.6.2",
   "dependencies": {
-    "@abstractplay/gameslib": "1.0.0-ci-32783108998.0",
+    "@abstractplay/gameslib": "1.0.0-ci-33342924888.0",
     "@abstractplay/recranks": "1.0.0-ci-32677322618.0",
-    "@abstractplay/renderer": "1.0.0-ci-32782926153.0",
+    "@abstractplay/renderer": "1.0.0-ci-33342507463.0",
     "@aws-sdk/client-dynamodb": "^3.321.1",
     "@aws-sdk/client-s3": "^3.374.0",
     "@aws-sdk/client-ses": "^3.321.1",
@@ -70,6 +70,6 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "@abstractplay/renderer": "1.0.0-ci-32782926153.0"
+    "@abstractplay/renderer": "1.0.0-ci-33342507463.0"
   }
 }

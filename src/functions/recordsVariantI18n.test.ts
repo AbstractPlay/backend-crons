@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GameFactory, addResource } from "@abstractplay/gameslib";
-import { enApgames, enApresults } from "../gameslibLocales.js";
+import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { type: "json" };
+import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
 import { encodeRecordGameId } from "../utils/recordGameId.js";
 import { gameRecordIsUnrated } from "../utils/recordUnrated.js";
 

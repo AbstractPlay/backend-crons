@@ -8,7 +8,7 @@ import {
     type ITrueskillRating,
     Trueskill,
 } from "@abstractplay/recranks";
-import { replacer } from "../gameslibRequire.js";
+import { replacer } from "@abstractplay/gameslib";
 import type { TwoPlayerStats } from "types/stats/TwoPlayerStats.js";
 import type { UserGameRating } from "types/stats/UserGameRating.js";
 import type { UserNumber } from "types/stats/UserNumber.js";
