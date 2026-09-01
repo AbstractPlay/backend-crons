@@ -9,7 +9,7 @@
  *
  * Usage: node bin/install-ap-deps.mjs --stage dev|prod [--renderer-only] [--for-tests]
  *
- * --for-tests: install ci-deps pins without rewriting package.json or prod registry checks
+ * --for-tests: skip prod gameslib registry verification only (still syncs package.json)
  */
 import fs from "fs";
 import path from "path";
@@ -126,10 +126,6 @@ function resolveVersions({ stage, rendererOnly, forTests, pkgJson }) {
     } else {
       source = `${manifestName} (for-tests)`;
     }
-    console.log(
-      `Test install: @abstractplay/gameslib@${gameslib ?? "(see ci-deps or fallback)"} ` +
-        `(${source}, not synced to package.json)`,
-    );
   } else if (dispatchGameslib || dispatchRenderer || dispatchRecranks) {
     source = process.env.AP_SOURCE || "repository_dispatch";
   }
@@ -168,11 +164,11 @@ function syncPackageJson(pkgJson, versions) {
     pkgJson.dependencies["@abstractplay/renderer"] = versions.renderer;
   }
 
-  if (!versions.rendererOnly && versions.gameslib && !versions.forTests) {
+  if (!versions.rendererOnly && versions.gameslib) {
     pkgJson.dependencies["@abstractplay/gameslib"] = versions.gameslib;
   }
 
-  if (!versions.rendererOnly && versions.recranks && !versions.forTests) {
+  if (!versions.rendererOnly && versions.recranks) {
     pkgJson.dependencies["@abstractplay/recranks"] = versions.recranks;
   }
 

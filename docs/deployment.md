@@ -13,7 +13,15 @@ GitHub Actions deploy via Serverless Framework:
 
 Upstream repos (notably [gameslib](https://github.com/AbstractPlay/gameslib)) dispatch `dep_update_dev` / `dep_update_prod` after package publishes, which redeploys backend-crons with updated dependencies.
 
-## Dev vs prod CI
+## AP dependency pins (`ci-deps.*.json`)
+
+Canonical pins: `gameslib`, `renderer`, and `recranks` in `ci-deps.dev.json` / `ci-deps.prod.json`. CI runs `npm ci` → validate manifests → `bin/install-ap-deps.mjs --stage dev|prod` → strict sync check → build/test.
+
+After a merge that touches dependency files, run `npm run sync-deps` on `develop` (or `npm run sync-deps:prod` on `main`) and commit `ci-deps.*.json`, `package.json`, and `package-lock.json` together.
+
+`ci-deps.prod.json` is protected on `main` via `.gitattributes` (`merge=ours`).
+
+## Dev vs prod CI (legacy note)
 
 **Dev** (`develop`):
 

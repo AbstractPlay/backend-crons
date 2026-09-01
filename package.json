@@ -8,7 +8,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build-ts": "tsc",
-    "build": "node bin/check-ci-deps.mjs && eslint",
+    "build": "eslint",
     "build:layers": "node scripts/build-layers.mjs",
     "test:layers": "npm run build:layers && node scripts/smoke-layer-modules.mjs",
     "run-records-pipeline": "node bin/run-records-pipeline.mjs",
@@ -17,7 +17,9 @@
     "deploy-prod": "serverless --stage prod deploy",
     "full-dev": "npm run clean && npm run build && serverless deploy",
     "full-prod": "npm run build && serverless --stage prod deploy",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "sync-deps": "node bin/install-ap-deps.mjs --stage dev",
+    "sync-deps:prod": "node bin/install-ap-deps.mjs --stage prod"
   },
   "author": "Paul van Wamelen",
   "license": "MIT",
