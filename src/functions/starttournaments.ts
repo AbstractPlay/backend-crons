@@ -6,12 +6,8 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCo
 // import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import { gameinfo, GameFactory, GameBase, GameBaseSimultaneous, type APGamesInformation } from '@abstractplay/gameslib';
-import enApgames from '@abstractplay/gameslib/locales/en/apgames.json';
-import frApgames from '@abstractplay/gameslib/locales/fr/apgames.json';
-import deApgames from '@abstractplay/gameslib/locales/de/apgames.json';
-import itApgames from '@abstractplay/gameslib/locales/it/apgames.json';
-import esUSApgames from '@abstractplay/gameslib/locales/es-US/apgames.json';
 import { localizedGameName } from '../lib/gameDisplayName.js';
+import { applyGameslibBundlesTo, GAMESLIB_APGAMES_LANGS } from '../lib/gameslibLocales.js';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import i18n from 'i18next';
 import en from '../locales/en/apback.json';
@@ -51,16 +47,9 @@ type StartTournamentsEvent = {
 };
 
 const APBACK_BY_LANG = { en, fr, it } as const;
-const APGAMES_BY_LANG: Record<string, object> = {
-  en: enApgames,
-  fr: frApgames,
-  de: deApgames,
-  it: itApgames,
-  'es-US': esUSApgames,
-};
 const REGISTERED_LANGUAGES = [...new Set([
   ...Object.keys(APBACK_BY_LANG),
-  ...Object.keys(APGAMES_BY_LANG),
+  ...GAMESLIB_APGAMES_LANGS,
 ])];
 
 function resolvePlayerLanguage(language: string | undefined): string {
@@ -905,11 +894,12 @@ export async function initi18n(language: string) {
           ...(lng in APBACK_BY_LANG
             ? { translation: APBACK_BY_LANG[lng as keyof typeof APBACK_BY_LANG] }
             : {}),
-          apgames: APGAMES_BY_LANG[lng] ?? enApgames,
         },
       ]),
     ),
   });
+
+  applyGameslibBundlesTo(i18n);
 }
 
 // Handles errors during GetItem execution. Use recommendations in error messages below to
