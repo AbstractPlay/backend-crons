@@ -6,6 +6,12 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCo
 // import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import { gameinfo, GameFactory, GameBase, GameBaseSimultaneous, type APGamesInformation } from '@abstractplay/gameslib';
+import enApgames from '@abstractplay/gameslib/locales/en/apgames.json';
+import frApgames from '@abstractplay/gameslib/locales/fr/apgames.json';
+import deApgames from '@abstractplay/gameslib/locales/de/apgames.json';
+import itApgames from '@abstractplay/gameslib/locales/it/apgames.json';
+import esUSApgames from '@abstractplay/gameslib/locales/es-US/apgames.json';
+import { localizedGameName } from '../lib/gameDisplayName.js';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import i18n from 'i18next';
 import en from '../locales/en/apback.json';
@@ -43,6 +49,32 @@ type StartTournamentsEvent = {
   tournamentId?: string;
   resume?: boolean;
 };
+
+const APBACK_BY_LANG = { en, fr, it } as const;
+const APGAMES_BY_LANG: Record<string, object> = {
+  en: enApgames,
+  fr: frApgames,
+  de: deApgames,
+  it: itApgames,
+  'es-US': esUSApgames,
+};
+const REGISTERED_LANGUAGES = [...new Set([
+  ...Object.keys(APBACK_BY_LANG),
+  ...Object.keys(APGAMES_BY_LANG),
+])];
+
+function resolvePlayerLanguage(language: string | undefined): string {
+  if (language && REGISTERED_LANGUAGES.includes(language)) {
+    return language;
+  }
+  if (language) {
+    const lower = language.toLowerCase();
+    if (lower === 'es' || lower.startsWith('es-')) {
+      return 'es-US';
+    }
+  }
+  return 'en';
+}
 
 const REGION = "us-east-1";
 const sesClient = new SESClient({ region: REGION });
@@ -445,9 +477,9 @@ async function startTournament(
     }
     // Send email to players
     await initi18n('en');
-    const metaGameName = gameinfo.get(tournament.metaGame)?.name;
     for (let player of playersFull) {
       await changeLanguageForPlayer(player);
+      const metaGameName = localizedGameName(tournament.metaGame);
       let body = '';
       if (tournament.variants.length === 0)
         body = i18n.t("TournamentCancelBody", { "metaGame": metaGameName, "number": tournament.number });
@@ -488,7 +520,6 @@ async function startTournament(
     const clockStart = 72;
     const clockInc = 36;
     const clockMax = 120;
-    const metaGameName = gameinfo.get(tournament.metaGame)?.name ?? tournament.metaGame;
     assignTournamentPlayerRatings(
       players,
       ratingsHighest,
@@ -736,6 +767,7 @@ async function startTournament(
         if ( (player.settings?.all?.notifications === undefined) || (!player.settings.all.notifications.hasOwnProperty("tournamentStart")) || (player.settings.all.notifications.tournamentStart) ) {
             console.log("Sending email");
             await changeLanguageForPlayer(player);
+            const metaGameName = localizedGameName(tournament.metaGame);
             let body = '';
             if (tournament.variants.length === 0)
                 body = i18n.t("TournamentStartBody", { "metaGame": metaGameName, "number": tournament.number });
@@ -806,10 +838,10 @@ async function startTournament(
       return;
     }
     await initi18n('en');
-    const metaGameName = gameinfo.get(tournament.metaGame)?.name;
     for (const player of playersFull) {
       try {
         await changeLanguageForPlayer(player);
+        const metaGameName = localizedGameName(tournament.metaGame);
         let body = '';
         if (tournament.variants.length === 0)
           body = i18n.t("TournamentRemoveBody", { "metaGame": metaGameName, "number": tournament.number });
@@ -829,9 +861,7 @@ async function startTournament(
 }
 
 export async function changeLanguageForPlayer(player: { language: string | undefined; }) {
-  let lng = "en";
-  if (player.language !== undefined)
-    lng = player.language;
+  const lng = resolvePlayerLanguage(player.language);
   if (i18n.language !== lng) {
     await i18n.changeLanguage(lng);
     console.log(`changed language to ${lng}`);
@@ -868,17 +898,17 @@ export async function initi18n(language: string) {
     lng: language,
     fallbackLng: 'en',
     debug: true,
-    resources: {
-      en: {
-        translation: en
-      },
-      fr: {
-        translation: fr
-      },
-      it: {
-        translation: it
-      }
-    }
+    resources: Object.fromEntries(
+      REGISTERED_LANGUAGES.map((lng) => [
+        lng,
+        {
+          ...(lng in APBACK_BY_LANG
+            ? { translation: APBACK_BY_LANG[lng as keyof typeof APBACK_BY_LANG] }
+            : {}),
+          apgames: APGAMES_BY_LANG[lng] ?? enApgames,
+        },
+      ]),
+    ),
   });
 }
 
