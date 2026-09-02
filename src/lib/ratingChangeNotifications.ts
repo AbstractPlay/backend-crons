@@ -10,6 +10,8 @@ import {
 
 export const MIN_RATING_DELTA = 5;
 export const NOTIFICATION_INITIAL_TTL_DAYS = 180;
+/** Bump when rating methodology changes so the next notification run re-seeds without notifying. */
+export const RATINGS_NOTIFICATION_BASELINE = 2;
 const SEC_PER_DAY = 86_400;
 const NOTIFICATION_PK_PREFIX = "NOTIFICATION#";
 
@@ -23,6 +25,7 @@ export type RatingNotificationSnapshotEntry = {
 export type RatingNotificationSnapshot = {
     generatedAt: string;
     summaryGeneratedAt: string;
+    baseline: number;
     entries: Record<string, RatingNotificationSnapshotEntry>;
 };
 
@@ -133,6 +136,7 @@ export function buildRatingChangeSnapshot(
     return {
         generatedAt,
         summaryGeneratedAt,
+        baseline: RATINGS_NOTIFICATION_BASELINE,
         entries,
     };
 }

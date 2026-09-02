@@ -9,6 +9,7 @@ import {
     filterCandidates,
     filterCandidatesByInAppPrefs,
     MIN_RATING_DELTA,
+    RATINGS_NOTIFICATION_BASELINE,
     toNotificationItems,
     type RatingNotificationSnapshot,
 } from "./ratingChangeNotifications.js";
@@ -94,6 +95,7 @@ describe("buildRatingChangeSnapshot", () => {
             glickoRow("alice", "go (9x9|handicap)", 1170, 5),
         ]);
         const snapshot = buildRatingChangeSnapshot(summary, summary.ratings.glickoMeta.generatedAt);
+        expect(snapshot.baseline).toBe(RATINGS_NOTIFICATION_BASELINE);
         expect(snapshot.entries["alice|chess (no variants)"]).toEqual(
             snapshotEntry(1200, 10),
         );
@@ -107,6 +109,7 @@ describe("filterCandidates gates", () => {
     const prev: RatingNotificationSnapshot = {
         generatedAt: "2026-08-24T06:20:00.000Z",
         summaryGeneratedAt: "2026-08-24T06:00:00.000Z",
+        baseline: RATINGS_NOTIFICATION_BASELINE,
         entries: {
             "alice|chess (no variants)": snapshotEntry(1190, 10, 80),
             "bob|chess (no variants)": snapshotEntry(1100, 8),
@@ -193,6 +196,7 @@ describe("filterCandidates gates", () => {
         const multiPrev: RatingNotificationSnapshot = {
             generatedAt: "2026-08-24T06:20:00.000Z",
             summaryGeneratedAt: "2026-08-24T06:00:00.000Z",
+            baseline: RATINGS_NOTIFICATION_BASELINE,
             entries: {
                 "alice|chess (no variants)": snapshotEntry(1000, 5),
                 "alice|go (9x9|handicap)": snapshotEntry(1000, 5),
@@ -291,7 +295,24 @@ describe("first run and idempotent re-run", () => {
         const summary = ratingsSummary([glickoRow("alice", "chess (no variants)", 1200, 1)]);
         const snapshot = buildRatingChangeSnapshot(summary, summary.ratings.glickoMeta.generatedAt);
         expect(Object.keys(snapshot.entries)).toHaveLength(1);
+        expect(snapshot.baseline).toBe(RATINGS_NOTIFICATION_BASELINE);
         expect(snapshot.summaryGeneratedAt).toBe("2026-08-25T06:00:00.000Z");
+    });
+
+    it("re-seeds when prior snapshot baseline is stale", () => {
+        const generatedAt = "2026-08-25T06:00:00.000Z";
+        const stale: RatingNotificationSnapshot = {
+            generatedAt: "2026-08-24T06:20:00.000Z",
+            summaryGeneratedAt: "2026-08-24T06:00:00.000Z",
+            baseline: RATINGS_NOTIFICATION_BASELINE - 1,
+            entries: {
+                "alice|chess (no variants)": snapshotEntry(900, 5),
+            },
+        };
+        const nextSummary = ratingsSummary([glickoRow("alice", "chess (no variants)", 1250, 12)], generatedAt);
+        const diff = diffRatingChanges(stale, nextSummary.ratings.highest);
+        expect(diff[0]?.delta).toBeGreaterThan(100);
+        expect(stale.baseline).not.toBe(RATINGS_NOTIFICATION_BASELINE);
     });
 
     it("idempotent when summaryGeneratedAt unchanged", () => {

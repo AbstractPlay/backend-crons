@@ -18,6 +18,7 @@ import {
     filterCandidates,
     filterCandidatesByInAppPrefs,
     ratingChangeConstantsFromEnv,
+    RATINGS_NOTIFICATION_BASELINE,
     toNotificationItems,
     type RatingChangeNotificationItem,
     type RatingChangeFilterStats,
@@ -176,11 +177,17 @@ export const handler: Handler = async (): Promise<RatingChangeNotificationsMetri
         RATINGS_NOTIFICATION_SNAPSHOT_KEY,
     );
 
-    if (priorSnapshotResult === undefined) {
+    const priorSnapshot = priorSnapshotResult?.data;
+    const priorBaseline = priorSnapshot?.baseline;
+    const snapshotUsable = priorSnapshot !== undefined
+        && priorBaseline === RATINGS_NOTIFICATION_BASELINE;
+
+    if (!snapshotUsable) {
         const snapshot = buildRatingChangeSnapshot(summary, summaryGeneratedAt);
         const bytes = await putRecordsJson(s3, RATINGS_NOTIFICATION_SNAPSHOT_KEY, snapshot);
+        const reason = priorSnapshot === undefined ? "no prior snapshot" : "baseline re-seed";
         console.log(
-            `rating-change-notifications: seeded snapshot (${bytes} bytes), 0 notifications`,
+            `rating-change-notifications: seeded snapshot (${bytes} bytes, ${reason}), 0 notifications`,
         );
         return {
             summaryGeneratedAt,
@@ -191,7 +198,6 @@ export const handler: Handler = async (): Promise<RatingChangeNotificationsMetri
         };
     }
 
-    const priorSnapshot = priorSnapshotResult.data;
     if (priorSnapshot.summaryGeneratedAt === summaryGeneratedAt) {
         console.log("rating-change-notifications: summary unchanged, skipping");
         return {
