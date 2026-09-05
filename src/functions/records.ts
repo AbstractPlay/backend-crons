@@ -14,6 +14,7 @@ import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with 
 import enBack from "../locales/en/apback.json";
 import { decompressGameState } from "../utils/gameState.js";
 import { encodeRecordGameId } from "../utils/recordGameId.js";
+import { resolveGameVariantUids } from "../utils/resolveGameVariants.js";
 import { findTournamentForGame } from "../utils/recordTournament.js";
 import { gameRecordIsUnrated } from "../utils/recordUnrated.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
@@ -187,7 +188,13 @@ export const handler: Handler = async (event: any, context?: any) => {
                 console.log(`Could not find a matching event records for game record "${gdata.sk}".`)
             }
         }
-        const variantUids = g.variants ?? (gdata.variants as string[] | undefined) ?? [];
+        const variantUids = resolveGameVariantUids(g.variants, gdata.variants, {
+            metaGame: gdata.metaGame,
+            gameId: gdata.id,
+        });
+        if (variantUids.length > 0 && (g.variants?.length ?? 0) === 0) {
+            g.variants = variantUids;
+        }
         const unrated = gameRecordIsUnrated(gdata.metaGame, variantUids, gdata.rated);
         const rec = g.genRecord({
             uid: encodeRecordGameId(gdata.id, gdata.metaGame, variantUids),

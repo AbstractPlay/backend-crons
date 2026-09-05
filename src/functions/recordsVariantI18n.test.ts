@@ -4,6 +4,7 @@ import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { ty
 import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
 import { encodeRecordGameId } from "../utils/recordGameId.js";
 import { gameRecordIsUnrated } from "../utils/recordUnrated.js";
+import { resolveGameVariantUids } from "../utils/resolveGameVariants.js";
 
 const INSTANCE_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 
@@ -69,5 +70,41 @@ describe("records variant i18n", () => {
             unrated: unrated ? true : undefined,
         });
         expect(rec!.header.unrated).toBe(true);
+    });
+
+    it("reconciles record variants when state variants are empty (amazons retroactive bug)", () => {
+        addResource("en", undefined, {
+            bundles: { apgames: enApgames, apresults: enApresults },
+        });
+
+        const g = GameFactory("amazons", undefined, ["scrambled"]);
+        expect(g).toBeDefined();
+        g!.gameover = true;
+        const stateWithEmptyVariants = JSON.parse(g!.serialize()) as { variants: string[] };
+        stateWithEmptyVariants.variants = [];
+        const reloaded = GameFactory("amazons", JSON.stringify(stateWithEmptyVariants));
+        expect(reloaded).toBeDefined();
+        expect(reloaded!.variants).toEqual([]);
+
+        const recordVariants = ["scrambled"];
+        const variantUids = resolveGameVariantUids(reloaded!.variants, recordVariants, {
+            metaGame: "amazons",
+            gameId: INSTANCE_ID,
+        });
+        expect(variantUids).toEqual(["scrambled"]);
+        if (variantUids.length > 0 && (reloaded!.variants?.length ?? 0) === 0) {
+            reloaded!.variants = variantUids;
+        }
+
+        const rec = reloaded!.genRecord({
+            uid: encodeRecordGameId(INSTANCE_ID, "amazons", variantUids),
+            players: [
+                { uid: "alice", name: "Alice" },
+                { uid: "bob", name: "Bob" },
+            ],
+        });
+        expect(rec).toBeDefined();
+        expect(rec!.header.site.gameid).toBe(`${INSTANCE_ID}#amazons:scrambled`);
+        expect(rec!.header.game.variants).toContain("Scrambled");
     });
 });
