@@ -8,6 +8,4 @@ jspm_packages
 /utils/*.js
 .vscode/
 bin/*
-!bin/install-ap-deps.mjs
-!bin/check-ci-deps.mjs
 dist/

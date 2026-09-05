@@ -15,7 +15,7 @@ Upstream repos (notably [gameslib](https://github.com/AbstractPlay/gameslib)) di
 
 ## AP dependency pins (`ci-deps.*.json`)
 
-Canonical pins: `gameslib`, `renderer`, and `recranks` in `ci-deps.dev.json` / `ci-deps.prod.json`. CI runs `npm ci` → validate manifests → `bin/install-ap-deps.mjs --stage dev|prod` → strict sync check → build/test.
+Canonical pins: `gameslib`, `renderer`, and `recranks` in `ci-deps.dev.json` / `ci-deps.prod.json`. CI runs `npm ci` → validate manifests → `ap-install-deps --stage dev|prod` → strict lockfile check → build/test.
 
 After a merge that touches dependency files, run `npm run sync-deps` on `develop` (or `npm run sync-deps:prod` on `main`) and commit `ci-deps.*.json`, `package.json`, and `package-lock.json` together.
 
