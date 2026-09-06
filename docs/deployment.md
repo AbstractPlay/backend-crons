@@ -55,23 +55,14 @@ EventBridge cron rules are **enabled only on prod** (`custom.scheduleEnabled.pro
 
 ## Ops alerts (email)
 
-When `OPS_ALERT_EMAIL` is set at deploy time, CloudFormation creates an SNS topic (`abstractplay-crons-ops-alerts-${stage}`) and wires **records** and **summarize** Lambda error alarms to it:
+On **prod** deploy, CloudWatch alarms for **records** and **summarize** Lambda errors are wired to the shared SNS topic from [node-backend](/backend/deployment/) (`abstractplay-ops-alerts-prod`). No separate topic or email subscription is created in this stack — use the node-backend ops-alerts setup (and its one-time SNS confirm) for notifications.
 
 | Alarm | Signal |
 |-------|--------|
-| `abstractplay-crons-records-errors-${stage}` | Lambda `Errors` ≥ 1 in 1 minute (catches init crashes) |
-| `abstractplay-crons-summarize-errors-${stage}` | Lambda `Errors` ≥ 1 in 1 minute (catches init crashes) |
+| `abstractplay-crons-records-errors-prod` | Lambda `Errors` ≥ 1 in 1 minute (catches init crashes) |
+| `abstractplay-crons-summarize-errors-prod` | Lambda `Errors` ≥ 1 in 1 minute (catches init crashes) |
 
-**First deploy:** SNS sends a subscription confirmation email — you must click **Confirm subscription** once or alarms will not arrive.
-
-**Local / manual deploy:**
-
-```bash
-export OPS_ALERT_EMAIL=you@example.com
-serverless deploy --stage prod
-```
-
-Omit `OPS_ALERT_EMAIL` to skip the topic and alarms (dev deploys by default).
+Dev deploys skip these alarms.
 
 These alarms catch Lambda failures (timeouts, unhandled exceptions, init errors). They do **not** catch `summarize` early exits when `ALL.json` cannot be read — that path logs and returns without throwing. For stale `_summary.json` detection, add a separate S3 freshness check.
 
@@ -82,7 +73,6 @@ These alarms catch Lambda failures (timeouts, unhandled exceptions, init errors)
 | `AWS_KEY`, `AWS_SECRET` | Deploy credentials |
 | `PAT_READ_PACKAGES` | npm install from GitHub Packages |
 | `PAT_WORKFLOWS` | Trigger docs rebuild (see below) |
-| `OPS_ALERT_EMAIL` | Ops CloudWatch alarm notifications (prod workflow) |
 
 ## Documentation deploys
 

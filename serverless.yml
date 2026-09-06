@@ -6,6 +6,8 @@ custom:
   scheduleEnabled:
     prod: true
     dev: false
+  # node-backend exports abstract-play-${stage}-OpsAlertsTopicArn (abstractplay-ops-alerts-${stage})
+  opsAlertsTopicImport: abstract-play-${self:provider.stage}-OpsAlertsTopicArn
   recbucket:
     prod: "records.abstractplay.com"
     dev: "records.abstractplay.com"
@@ -45,9 +47,6 @@ custom:
       before:package:createDeploymentArtifacts: npm run build:layers
 
 params:
-  default:
-    # Ops email for CloudWatch → SNS alerts (confirm subscription once after first deploy).
-    opsAlertEmail: ${env:OPS_ALERT_EMAIL, ''}
   dev:
     profile: AbstractPlayDev
   prod:
@@ -419,27 +418,11 @@ functions:
 resources:
   Conditions:
     OpsAlertsEnabled:
-      Fn::Not:
-        - Fn::Equals:
-            - '${param:opsAlertEmail}'
-            - ''
+      Fn::Equals:
+        - ${self:provider.stage}
+        - prod
 
   Resources:
-    OpsAlertsTopic:
-      Type: AWS::SNS::Topic
-      Condition: OpsAlertsEnabled
-      Properties:
-        DisplayName: AbstractPlay Crons Ops Alerts (${self:provider.stage})
-        TopicName: abstractplay-crons-ops-alerts-${self:provider.stage}
-
-    OpsAlertsEmailSubscription:
-      Type: AWS::SNS::Subscription
-      Condition: OpsAlertsEnabled
-      Properties:
-        Protocol: email
-        TopicArn: !Ref OpsAlertsTopic
-        Endpoint: ${param:opsAlertEmail}
-
     RecordsErrorsAlarm:
       Type: AWS::CloudWatch::Alarm
       Condition: OpsAlertsEnabled
@@ -458,9 +441,9 @@ resources:
         ComparisonOperator: GreaterThanOrEqualToThreshold
         TreatMissingData: notBreaching
         AlarmActions:
-          - !Ref OpsAlertsTopic
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
         OKActions:
-          - !Ref OpsAlertsTopic
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
 
     SummarizeErrorsAlarm:
       Type: AWS::CloudWatch::Alarm
@@ -480,9 +463,9 @@ resources:
         ComparisonOperator: GreaterThanOrEqualToThreshold
         TreatMissingData: notBreaching
         AlarmActions:
-          - !Ref OpsAlertsTopic
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
         OKActions:
-          - !Ref OpsAlertsTopic
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
 
     PlayerSummaryDeadLetterQueue:
       Type: AWS::SQS::Queue
@@ -505,12 +488,6 @@ resources:
         MessageRetentionPeriod: 86400
 
   Outputs:
-    OpsAlertsTopicArn:
-      Condition: OpsAlertsEnabled
-      Description: SNS topic for crons ops CloudWatch alarms (email subscription requires one-time confirm)
-      Value: !Ref OpsAlertsTopic
-      Export:
-        Name: ${self:service}-${self:provider.stage}-OpsAlertsTopicArn
     RenderQueueArn:
       Value: !GetAtt RenderQueue.Arn
       Export:
