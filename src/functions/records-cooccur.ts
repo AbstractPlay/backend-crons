@@ -11,6 +11,7 @@ import {
     unionCoPlaySet,
 } from "../utils/cooccurPmi.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
+import { skipCompletedGameWithoutState } from "../utils/completedGameRec.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({ region: REGION });
@@ -105,6 +106,9 @@ export const handler: Handler = async () => {
                         const json = JSON.parse(JSON.stringify(outerRec)) as BasicRec;
                         const rec = json.Item;
                         if (rec.pk === "GAME" && rec.sk.includes("#1#")) {
+                            if (skipCompletedGameWithoutState(rec)) {
+                                continue;
+                            }
                             const gdata = rec as GameRec;
                             for (const player of gdata.players) {
                                 pushToSetMap(playedByPlayer, player.id, gdata.metaGame);
