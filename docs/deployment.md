@@ -53,6 +53,28 @@ Or: `npm run deploy-dev`, `npm run deploy-prod`, `npm run full-dev`, `npm run fu
 
 EventBridge cron rules are **enabled only on prod** (`custom.scheduleEnabled.prod: true`). Dev stacks contain the Lambdas but scheduled invocations are off — invoke manually if needed.
 
+## Ops alerts (email)
+
+When `OPS_ALERT_EMAIL` is set at deploy time, CloudFormation creates an SNS topic (`abstractplay-crons-ops-alerts-${stage}`) and wires **records** and **summarize** Lambda error alarms to it:
+
+| Alarm | Signal |
+|-------|--------|
+| `abstractplay-crons-records-errors-${stage}` | Lambda `Errors` ≥ 1 in 1 minute (catches init crashes) |
+| `abstractplay-crons-summarize-errors-${stage}` | Lambda `Errors` ≥ 1 in 1 minute (catches init crashes) |
+
+**First deploy:** SNS sends a subscription confirmation email — you must click **Confirm subscription** once or alarms will not arrive.
+
+**Local / manual deploy:**
+
+```bash
+export OPS_ALERT_EMAIL=you@example.com
+serverless deploy --stage prod
+```
+
+Omit `OPS_ALERT_EMAIL` to skip the topic and alarms (dev deploys by default).
+
+These alarms catch Lambda failures (timeouts, unhandled exceptions, init errors). They do **not** catch `summarize` early exits when `ALL.json` cannot be read — that path logs and returns without throwing. For stale `_summary.json` detection, add a separate S3 freshness check.
+
 ## Required GitHub secrets
 
 | Secret | Purpose |
@@ -60,6 +82,7 @@ EventBridge cron rules are **enabled only on prod** (`custom.scheduleEnabled.pro
 | `AWS_KEY`, `AWS_SECRET` | Deploy credentials |
 | `PAT_READ_PACKAGES` | npm install from GitHub Packages |
 | `PAT_WORKFLOWS` | Trigger docs rebuild (see below) |
+| `OPS_ALERT_EMAIL` | Ops CloudWatch alarm notifications (prod workflow) |
 
 ## Documentation deploys
 

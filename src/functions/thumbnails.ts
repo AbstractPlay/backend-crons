@@ -8,6 +8,7 @@ import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { ReservoirSampler } from "../utils/ReservoirSampler.js";
 import { resolveRenderLabels } from "../utils/resolveRenderLabels.js";
+import { skipCompletedGameWithoutState } from "../utils/completedGameRec.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
 import enBack from "../locales/en/apback.json";
@@ -125,6 +126,12 @@ export const handler: Handler = async () => {
                                         const rec = json.Item;
                                         if (rec.pk === "GAME") {
                                             const [meta, cbit] = rec.sk.split("#");
+                                            if (cbit === "1" && skipCompletedGameWithoutState(rec)) {
+                                                continue;
+                                            }
+                                            if (rec.state === undefined || rec.state === "") {
+                                                continue;
+                                            }
                                             const g = GameFactory(meta, rec.state);
                                             if (g === undefined) {
                                                 throw new Error(

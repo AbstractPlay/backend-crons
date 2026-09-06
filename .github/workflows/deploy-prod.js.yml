@@ -118,6 +118,8 @@ jobs:
 
     - name: Deploy
       run: serverless deploy --stage prod
+      env:
+        OPS_ALERT_EMAIL: ${{ secrets.OPS_ALERT_EMAIL }}
 
     - name: Trigger docs rebuild
       if: github.event_name == 'push'

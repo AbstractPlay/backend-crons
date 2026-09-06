@@ -45,6 +45,9 @@ custom:
       before:package:createDeploymentArtifacts: npm run build:layers
 
 params:
+  default:
+    # Ops email for CloudWatch → SNS alerts (confirm subscription once after first deploy).
+    opsAlertEmail: ${env:OPS_ALERT_EMAIL, ''}
   dev:
     profile: AbstractPlayDev
   prod:
@@ -414,7 +417,73 @@ functions:
           schedule: cron(0 0,12 * * ? *)
 
 resources:
+  Conditions:
+    OpsAlertsEnabled:
+      Fn::Not:
+        - Fn::Equals:
+            - '${param:opsAlertEmail}'
+            - ''
+
   Resources:
+    OpsAlertsTopic:
+      Type: AWS::SNS::Topic
+      Condition: OpsAlertsEnabled
+      Properties:
+        DisplayName: AbstractPlay Crons Ops Alerts (${self:provider.stage})
+        TopicName: abstractplay-crons-ops-alerts-${self:provider.stage}
+
+    OpsAlertsEmailSubscription:
+      Type: AWS::SNS::Subscription
+      Condition: OpsAlertsEnabled
+      Properties:
+        Protocol: email
+        TopicArn: !Ref OpsAlertsTopic
+        Endpoint: ${param:opsAlertEmail}
+
+    RecordsErrorsAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Condition: OpsAlertsEnabled
+      Properties:
+        AlarmName: abstractplay-crons-records-errors-${self:provider.stage}
+        AlarmDescription: records Lambda errors (including init failures)
+        Namespace: AWS/Lambda
+        MetricName: Errors
+        Dimensions:
+          - Name: FunctionName
+            Value: !Ref RecordsLambdaFunction
+        Statistic: Sum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - !Ref OpsAlertsTopic
+        OKActions:
+          - !Ref OpsAlertsTopic
+
+    SummarizeErrorsAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Condition: OpsAlertsEnabled
+      Properties:
+        AlarmName: abstractplay-crons-summarize-errors-${self:provider.stage}
+        AlarmDescription: summarize Lambda errors (including init failures)
+        Namespace: AWS/Lambda
+        MetricName: Errors
+        Dimensions:
+          - Name: FunctionName
+            Value: !Ref SummarizeLambdaFunction
+        Statistic: Sum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - !Ref OpsAlertsTopic
+        OKActions:
+          - !Ref OpsAlertsTopic
+
     PlayerSummaryDeadLetterQueue:
       Type: AWS::SQS::Queue
       Properties:
@@ -436,6 +505,12 @@ resources:
         MessageRetentionPeriod: 86400
 
   Outputs:
+    OpsAlertsTopicArn:
+      Condition: OpsAlertsEnabled
+      Description: SNS topic for crons ops CloudWatch alarms (email subscription requires one-time confirm)
+      Value: !Ref OpsAlertsTopic
+      Export:
+        Name: ${self:service}-${self:provider.stage}-OpsAlertsTopicArn
     RenderQueueArn:
       Value: !GetAtt RenderQueue.Arn
       Export:

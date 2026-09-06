@@ -7,6 +7,7 @@ import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { type BasicRec, type GameRec, type MoveRec } from "types/index.js";
 import { decompressGameState } from "../utils/gameState.js";
+import { skipCompletedGameWithoutState, gameRecHasPlayableState, resolveGameMetaGame } from "../utils/completedGameRec.js";
 import { computeMoveSeasonality, computeWeeklyActiveMovers, MOVE_SEASONALITY_WINDOW_DAYS } from "../utils/moveSeasonality.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
 import type { SeasonalityStats } from "types/stats/SeasonalityStats.js";
@@ -109,6 +110,9 @@ export const handler: Handler = async (event: any, context?: any) => {
                                 const json = JSON.parse(JSON.stringify(outerRec)) as BasicRec;
                                 const rec = json.Item;
                                 if (rec.pk === "GAME") {
+                                    if (skipCompletedGameWithoutState(rec)) {
+                                        continue;
+                                    }
                                     justGames.push(rec as GameRec);
                                 }
                             }
@@ -139,13 +143,19 @@ export const handler: Handler = async (event: any, context?: any) => {
     const mvTimes6m: MoveRec[] = [];
     const mvTimes1y: MoveRec[] = [];
     for (const gdata of justGames) {
-        const g = GameFactory(gdata.metaGame, decompressGameState(gdata.state));
+        if (!gameRecHasPlayableState(gdata)) {
+            console.warn(
+                `Skipping GAME without playable state: sk=${gdata.sk} keys=${Object.keys(gdata).join(",")}`,
+            );
+            continue;
+        }
+        const metaGame = resolveGameMetaGame(gdata)!;
+        const g = GameFactory(metaGame, decompressGameState(gdata.state));
         if (g === undefined) {
-            throw new Error(`Unable to instantiate ${gdata.metaGame} game ${gdata.id}:\n${JSON.stringify(gdata.state)}`);
+            throw new Error(`Unable to instantiate ${metaGame} game ${gdata.id} (sk=${gdata.sk}):\n${JSON.stringify(gdata.state)}`);
         }
         // build rec and store
         for (let i = 1; i < g.stack.length; i++) {
-            const metaGame = gdata.metaGame;
             const time = new Date(g.stack[i]._timestamp).getTime();
             if (time < cutoff1y) {
                 continue;

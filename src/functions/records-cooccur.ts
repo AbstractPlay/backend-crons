@@ -11,7 +11,7 @@ import {
     unionCoPlaySet,
 } from "../utils/cooccurPmi.js";
 import { putRecordsJson } from "../utils/recordsJson.js";
-import { skipCompletedGameWithoutState } from "../utils/completedGameRec.js";
+import { skipCompletedGameWithoutState, resolveGameMetaGame } from "../utils/completedGameRec.js";
 
 const REGION = "us-east-1";
 const s3 = new S3Client({ region: REGION });
@@ -110,8 +110,15 @@ export const handler: Handler = async () => {
                                 continue;
                             }
                             const gdata = rec as GameRec;
+                            const metaGame = resolveGameMetaGame(gdata);
+                            if (!metaGame || !Array.isArray(gdata.players)) {
+                                console.warn(
+                                    `Skipping completed GAME without metaGame or players: sk=${gdata.sk}`,
+                                );
+                                continue;
+                            }
                             for (const player of gdata.players) {
-                                pushToSetMap(playedByPlayer, player.id, gdata.metaGame);
+                                pushToSetMap(playedByPlayer, player.id, metaGame);
                             }
                         } else if (rec.pk === "USER") {
                             const user = rec as UserRec;
