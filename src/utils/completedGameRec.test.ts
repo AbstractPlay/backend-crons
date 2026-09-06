@@ -1,12 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { completedGameRecHasState, skipCompletedGameWithoutState } from "./completedGameRec.js";
+import {
+    completedGameRecHasState,
+    gameRecHasPlayableState,
+    resolveGameMetaGame,
+    skipCompletedGameWithoutState,
+} from "./completedGameRec.js";
 
 describe("completedGameRec", () => {
-    it("accepts completed games with state", () => {
+    it("accepts completed games with state and players", () => {
         expect(completedGameRecHasState({
             pk: "GAME",
             sk: "go#1#uuid",
+            metaGame: "go",
             state: "{}",
+            players: [{ id: "p1", name: "A" }],
         })).toBe(true);
     });
 
@@ -18,6 +25,31 @@ describe("completedGameRec", () => {
         })).toBe(false);
     });
 
+    it("rejects completed games missing players even with state", () => {
+        expect(completedGameRecHasState({
+            pk: "GAME",
+            sk: "go#1#uuid",
+            metaGame: "go",
+            state: "{}",
+        })).toBe(false);
+    });
+
+    it("resolves metaGame from sk when field is absent", () => {
+        expect(resolveGameMetaGame({
+            sk: "volo#1#444727048",
+        })).toBe("volo");
+    });
+
+    it("gameRecHasPlayableState accepts active games", () => {
+        expect(gameRecHasPlayableState({
+            pk: "GAME",
+            sk: "go#0#uuid",
+            metaGame: "go",
+            state: "{}",
+            players: [{ id: "p1", name: "A" }, { id: "p2", name: "B" }],
+        })).toBe(true);
+    });
+
     it("logs and returns true for orphan completed games", () => {
         const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
         const rec = {
@@ -27,7 +59,7 @@ describe("completedGameRec", () => {
         };
         expect(skipCompletedGameWithoutState(rec)).toBe(true);
         expect(warn).toHaveBeenCalledWith(
-            "Skipping completed GAME without state: sk=tablero#1#377080453 keys=pk,sk,tournament",
+            "Skipping completed GAME without playable state: sk=tablero#1#377080453 keys=pk,sk,tournament",
         );
         warn.mockRestore();
     });
