@@ -107,6 +107,28 @@ describe("resolveRenderLabels", () => {
         expect(board.markers[0].label).toBe("Bob's stash");
     });
 
+    it("resolves structured labels in every multiframe render rep", () => {
+        const stashLabel = {
+            textKey: "test:STASH",
+            actor: { kind: "seat", seat: 1 },
+        };
+        const frame = {
+            areas: [
+                {
+                    type: "pieces",
+                    label: stashLabel,
+                    pieces: ["A1"],
+                },
+            ],
+        } as unknown as APRenderRep;
+        const rep = [structuredClone(frame), structuredClone(frame)] as APRenderRep[];
+        const resolved = resolveRenderLabels(rep, players, t);
+        expect(Array.isArray(resolved)).toBe(true);
+        for (const item of resolved as APRenderRep[]) {
+            expect((item.areas![0] as { label: string }).label).toBe("Alice's stash");
+        }
+    });
+
     describe("with real apgames bundle", () => {
         beforeAll(async () => {
             addResource("en", undefined, {
@@ -134,6 +156,33 @@ describe("resolveRenderLabels", () => {
                 String(gamesI18n.t(key, params ?? {})),
             );
             expect((resolved.areas![0] as { label: string }).label).toBe("Alice's housing limits");
+        });
+
+        it("resolves rincala LABEL_STASH on multiframe reps via i18next", () => {
+            const gamesI18n = addResource("en", undefined, {
+                bundles: { apgames: enApgames, apresults: enApresults },
+            });
+            const stashLabel = {
+                textKey: "apgames:validation.rincala.LABEL_STASH",
+                actor: { kind: "seat", seat: 2 },
+            };
+            const frame = {
+                areas: [
+                    {
+                        type: "pieces",
+                        label: stashLabel,
+                        pieces: ["Y"],
+                    },
+                ],
+            } as unknown as APRenderRep;
+            const resolved = resolveRenderLabels([frame, structuredClone(frame)], players, (key, params) =>
+                String(gamesI18n.t(key, params ?? {})),
+            );
+            const frames = resolved as APRenderRep[];
+            expect(frames).toHaveLength(2);
+            const label = (frames[1].areas![0] as { label: string }).label;
+            expect(label).not.toContain("apgames:");
+            expect(label).not.toBe("apgames:validation.rincala.LABEL_STASH");
         });
     });
 });

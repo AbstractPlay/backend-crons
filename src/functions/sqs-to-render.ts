@@ -7,6 +7,7 @@ import {
 import { addPrefix } from "@abstractplay/renderer";
 import type { IRenderOptions, APRenderRep } from "@abstractplay/renderer";
 import type { SQSHandler } from "aws-lambda";
+import { coalesceRenderFrames, type ThumbnailRenderOutput } from "../utils/thumbnailRenderRep.js";
 import { Buffer } from "node:buffer";
 import { customAlphabet } from "nanoid";
 import puppeteer, { type Browser } from "puppeteer-core";
@@ -83,14 +84,11 @@ export const handler: SQSHandler = async (event) => {
         const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         const data = await streamToString(obj.Body as Readable);
         console.log(`Fetched the following JSON:\n${data}`);
-        let aprender = JSON.parse(data) as APRenderRep | APRenderRep[];
-        if (typeof aprender === "string") {
-            aprender = JSON.parse(aprender) as APRenderRep | APRenderRep[];
+        let parsed = JSON.parse(data) as ThumbnailRenderOutput | string;
+        if (typeof parsed === "string") {
+            parsed = JSON.parse(parsed) as ThumbnailRenderOutput;
         }
-
-        if (Array.isArray(aprender)) {
-            aprender = aprender[aprender.length - 1] as APRenderRep;
-        }
+        const aprender = coalesceRenderFrames(parsed);
         console.log(`Result after parsing:\n${JSON.stringify(aprender)}`);
 
         console.log("Attempting to pre-render light/dark SVGs");
