@@ -5,6 +5,7 @@ import {
     type RenderLabel,
 } from "@abstractplay/gameslib";
 import type { APRenderRep } from "@abstractplay/renderer";
+import type { ThumbnailRenderOutput } from "./thumbnailRenderRep.js";
 
 type ThumbnailPlayer = {
     name: string;
@@ -87,18 +88,29 @@ function walkBoard(
     walkMarkers(board.markers, playerNames, t);
 }
 
-/** Resolve structured render labels to display strings before thumbnail SVG rendering. */
-export function resolveRenderLabels(
+function resolveRenderLabelsOne(
     rep: APRenderRep,
-    players: ThumbnailPlayer[],
+    playerNames: string[],
     t: ChatLogTranslate,
 ): APRenderRep {
-    if (!rep || typeof rep !== "object") {
+    if (!rep || typeof rep !== "object" || Array.isArray(rep)) {
         return rep;
     }
-    const playerNames = players.map((p) => p.name);
     const out = structuredClone(rep);
     walkBoard(out.board as BoardHost | null | undefined, playerNames, t);
     walkAreas(out.areas as LabelHost[] | undefined, playerNames, t);
     return out;
+}
+
+/** Resolve structured render labels to display strings before thumbnail SVG rendering. */
+export function resolveRenderLabels(
+    rep: ThumbnailRenderOutput,
+    players: ThumbnailPlayer[],
+    t: ChatLogTranslate,
+): ThumbnailRenderOutput {
+    const playerNames = players.map((p) => p.name);
+    if (Array.isArray(rep)) {
+        return rep.map((frame) => resolveRenderLabelsOne(frame, playerNames, t));
+    }
+    return resolveRenderLabelsOne(rep, playerNames, t);
 }

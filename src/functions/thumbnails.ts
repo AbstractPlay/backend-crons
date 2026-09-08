@@ -3,11 +3,11 @@ import { Handler } from "aws-lambda";
 import { GameFactory, addResource, gameinfo, type APGamesInformation } from "@abstractplay/gameslib";
 import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { type: "json" };
 import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
-import type { APRenderRep } from "@abstractplay/renderer";
 import { gunzipSync, strFromU8 } from "fflate";
 import { load as loadIon } from "ion-js";
 import { ReservoirSampler } from "../utils/ReservoirSampler.js";
 import { resolveRenderLabels } from "../utils/resolveRenderLabels.js";
+import type { ThumbnailRenderOutput } from "../utils/thumbnailRenderRep.js";
 import { skipCompletedGameWithoutState } from "../utils/completedGameRec.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
@@ -181,7 +181,7 @@ export const handler: Handler = async () => {
             }
             console.log("GAME records processed");
 
-            const allRecs = new Map<string, APRenderRep>();
+            const allRecs = new Map<string, ThumbnailRenderOutput>();
             for (const [meta, entry] of samplerMap.entries()) {
                 const active = entry.active.getSample();
                 let rec: GameRec;
@@ -206,7 +206,7 @@ export const handler: Handler = async () => {
                         `Error instantiating the following game record AFTER STRIPPING:\n${rec}`,
                     );
                 }
-                const rep = g.render({}) as APRenderRep;
+                const rep = g.render({}) as ThumbnailRenderOutput;
                 const resolved = resolveRenderLabels(rep, rec.players, (key, params) =>
                     String(gamesI18n.t(key, params ?? {})),
                 );
