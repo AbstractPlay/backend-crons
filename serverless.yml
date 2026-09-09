@@ -496,7 +496,7 @@ resources:
         MetricName: Errors
         Dimensions:
           - Name: FunctionName
-            Value: !Ref SqsDashToDashRenderLambdaFunction
+            Value: !Ref SqsDashtoDashrenderLambdaFunction
         Statistic: Sum
         Period: 60
         EvaluationPeriods: 1
