@@ -90,6 +90,7 @@ provider:
             - sqs:GetQueueUrl
             - ses:SendEmail
             - ses:SendRawEmail
+            - cloudwatch:PutMetricData
           Resource: "*"
         - Effect: "Allow"
           Action:
@@ -106,6 +107,7 @@ provider:
             - "arn:aws:s3:::abstractplay-db-dump/*"
             - "arn:aws:s3:::records.abstractplay.com/*"
             - "arn:aws:s3:::${self:custom.renderBucketName}/*"
+            - "arn:aws:s3:::thumbnails.abstractplay.com/*"
         - Effect: "Allow"
           Action:
             - "s3:GetObject"
@@ -298,6 +300,22 @@ functions:
           # 6am UTC daily (independent of summarize; reads ION dump directly)
           schedule: cron(0 6 * * ? *)
 
+  thumbnails-verify:
+    handler: src/functions/thumbnails-verify.handler
+    description: Verifies thumbnail SVG Last-Modified is not older than JSON after render pipeline
+    timeout: 300
+    memorySize: 512
+    logRetentionInDays: 7
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-thumbnails-verify
+          description: Checks JSON/SVG freshness one hour after thumbnails cron
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 7am UTC daily (after thumbnails + render pipeline)
+          schedule: cron(0 7 * * ? *)
+
   s3-to-sqs:
     handler: src/functions/s3-to-sqs.handler
     description: Triggered when new objects are written to prerender S3, pushes job info to SQS
@@ -468,6 +486,69 @@ resources:
         OKActions:
           - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
 
+    SqsToRenderErrorsAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Condition: OpsAlertsEnabled
+      Properties:
+        AlarmName: abstractplay-crons-sqs-to-render-errors-${self:provider.stage}
+        AlarmDescription: sqs-to-render Lambda errors (thumbnail SVG generation)
+        Namespace: AWS/Lambda
+        MetricName: Errors
+        Dimensions:
+          - Name: FunctionName
+            Value: !Ref SqsDashToDashRenderLambdaFunction
+        Statistic: Sum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+        OKActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+
+    ThumbnailsVerifyErrorsAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Condition: OpsAlertsEnabled
+      Properties:
+        AlarmName: abstractplay-crons-thumbnails-verify-errors-${self:provider.stage}
+        AlarmDescription: thumbnails-verify Lambda errors (JSON/SVG Last-Modified mismatch)
+        Namespace: AWS/Lambda
+        MetricName: Errors
+        Dimensions:
+          - Name: FunctionName
+            Value: !Ref ThumbnailsDashverifyLambdaFunction
+        Statistic: Sum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+        OKActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+
+    ThumbnailRenderFailureAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Condition: OpsAlertsEnabled
+      Properties:
+        AlarmName: abstractplay-crons-thumbnail-render-failure-${self:provider.stage}
+        AlarmDescription: Custom RenderFailure metric from sqs-to-render
+        Namespace: AbstractPlay/Thumbnails
+        MetricName: RenderFailure
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+        OKActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+
     PlayerSummaryDeadLetterQueue:
       Type: AWS::SQS::Queue
       Properties:
@@ -481,12 +562,43 @@ resources:
           deadLetterTargetArn: !GetAtt PlayerSummaryDeadLetterQueue.Arn
           maxReceiveCount: 3
 
+    RenderDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: abstractplay-render-dlq-${self:provider.stage}
+        MessageRetentionPeriod: 1209600
+
     RenderQueue:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: abstractplay-render-queue-${self:provider.stage}
         VisibilityTimeout: 900
         MessageRetentionPeriod: 86400
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt RenderDeadLetterQueue.Arn
+          maxReceiveCount: 3
+
+    RenderDlqAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Condition: OpsAlertsEnabled
+      Properties:
+        AlarmName: abstractplay-crons-render-dlq-${self:provider.stage}
+        AlarmDescription: Messages in render queue dead-letter queue
+        Namespace: AWS/SQS
+        MetricName: ApproximateNumberOfMessagesVisible
+        Dimensions:
+          - Name: QueueName
+            Value: abstractplay-render-dlq-${self:provider.stage}
+        Statistic: Maximum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
+        OKActions:
+          - Fn::ImportValue: ${self:custom.opsAlertsTopicImport}
 
   Outputs:
     RenderQueueArn:

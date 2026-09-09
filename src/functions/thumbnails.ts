@@ -8,6 +8,8 @@ import { load as loadIon } from "ion-js";
 import { ReservoirSampler } from "../utils/ReservoirSampler.js";
 import { resolveRenderLabels } from "../utils/resolveRenderLabels.js";
 import type { ThumbnailRenderOutput } from "../utils/thumbnailRenderRep.js";
+import { THUMB_BUCKET, THUMBNAIL_BROKEN_METAS } from "../utils/thumbnailConfig.js";
+import { decompressGameState } from "../utils/gameState.js";
 import { skipCompletedGameWithoutState } from "../utils/completedGameRec.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
@@ -17,7 +19,6 @@ import type { BasicRec, GameRec } from "types/index.js";
 const REGION = "us-east-1";
 const s3 = new S3Client({ region: REGION });
 const DUMP_BUCKET = "abstractplay-db-dump";
-const REC_BUCKET = "thumbnails.abstractplay.com";
 const RENDER_BUCKET = process.env.RENDER_BUCKET;
 const THUMBNAIL_CACHE_CONTROL = "public, max-age=86400";
 const MIN_MOVES = 5;
@@ -26,8 +27,6 @@ type SamplerEntry = {
     active: ReservoirSampler<GameRec>;
     completed: ReservoirSampler<GameRec>;
 };
-
-const broken: string[] = [];
 
 export const handler: Handler = async () => {
     const i18nInstance = i18next as unknown as i18n;
@@ -132,7 +131,7 @@ export const handler: Handler = async () => {
                                             if (rec.state === undefined || rec.state === "") {
                                                 continue;
                                             }
-                                            const g = GameFactory(meta, rec.state);
+                                            const g = GameFactory(meta, decompressGameState(rec.state));
                                             if (g === undefined) {
                                                 throw new Error(
                                                     `Error instantiating the following game record:\n${rec}`,
@@ -195,7 +194,7 @@ export const handler: Handler = async () => {
                     }
                     rec = completed[0];
                 }
-                let g = GameFactory(meta, rec.state);
+                let g = GameFactory(meta, decompressGameState(rec.state));
                 if (g === undefined) {
                     throw new Error(`Error instantiating the following game record:\n${rec}`);
                 }
@@ -225,7 +224,7 @@ export const handler: Handler = async () => {
             for (const [meta, rep] of allRecs.entries()) {
                 const body = JSON.stringify(rep);
                 let cmd = new PutObjectCommand({
-                    Bucket: REC_BUCKET,
+                    Bucket: THUMB_BUCKET,
                     Key: `${meta}.json`,
                     Body: body,
                     CacheControl: THUMBNAIL_CACHE_CONTROL,
@@ -235,7 +234,7 @@ export const handler: Handler = async () => {
                 if (response["$metadata"].httpStatusCode !== 200) {
                     console.log(response);
                 }
-                if (!broken.includes(meta)) {
+                if (!THUMBNAIL_BROKEN_METAS.includes(meta)) {
                     cmd = new PutObjectCommand({
                         Bucket: RENDER_BUCKET,
                         Key: `${meta}.json`,
