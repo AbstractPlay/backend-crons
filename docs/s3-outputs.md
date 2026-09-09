@@ -142,11 +142,9 @@ Not served via CloudFront. IAM-restricted.
 | `recommendations/analytics/daily/YYYY-MM-DD.json` | `records-rec-analytics` | UTC daily impression rollups |
 | `recommendations/analytics/summary.json` | `records-rec-analytics` | Latest window + rolling 7d/30d |
 | `recommendations/analytics/report/YYYY-MM-DD.md` | `records-rec-analytics` | Human/agent-readable report |
-| `gamemove-layout/analytics/_state.json` | `layout-feedback-analytics` | Watermark and dedupe state |
-| `gamemove-layout/analytics/daily/YYYY-MM-DD.json` | `layout-feedback-analytics` | UTC daily layout feedback rollups (includes note text) |
-| `gamemove-layout/analytics/summary.json` | `layout-feedback-analytics` | Latest window + rolling 7d/30d + recentNotes |
-| `gamemove-layout/analytics/report/YYYY-MM-DD.md` | `layout-feedback-analytics` | Human-readable layout feedback report |
 | `stats/rivalries.json` | `summarize` | All qualifying rivalry pairs with user IDs and display names (not anonymized; min 5 shared games) |
+
+**Retired (preview-era layout feedback):** `gamemove-layout/analytics/*` on private ops S3 is an archived snapshot from the removed `layout-feedback-analytics` cron. No new writes after teardown; DynamoDB `LAYOUTFB#*` rows are purged via `node-backend` `bin/purge-layout-feedback-events.mjs`.
 
 See [Recommendation analytics](/crons/recommendations-analytics/) and [Summarize](/crons/summarize/).
 
