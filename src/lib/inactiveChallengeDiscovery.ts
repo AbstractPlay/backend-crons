@@ -133,11 +133,18 @@ export async function issuerStillInactive(
   return isInactiveLastSeen(data.Item.lastSeen, inactiveBeforeMs);
 }
 
+export function isValidUserId(userId: string): boolean {
+  return userId.length > 0;
+}
+
 export async function isBotId(
   client: DynamoDBDocumentClient,
   tableName: string,
   userId: string,
 ): Promise<boolean> {
+  if (!isValidUserId(userId)) {
+    return false;
+  }
   const data = await client.send(new GetCommand({
     TableName: tableName,
     Key: { pk: 'BOT', sk: userId },

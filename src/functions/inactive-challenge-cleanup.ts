@@ -142,14 +142,21 @@ export const handler: Handler = async () => {
         );
       }
 
-      await notifyChallengeRevokedAcceptors(ddb, tableName, ses, revokeRecord, standing);
-
       if (standing) {
         summary.revokedStanding += 1;
       } else {
         summary.revokedDirect += 1;
       }
       processed += 1;
+
+      try {
+        await notifyChallengeRevokedAcceptors(ddb, tableName, ses, revokeRecord, standing);
+      } catch (notifyErr) {
+        console.error(
+          `Revoked ${candidate.kind} challenge ${candidate.metaGame}#${candidate.id} but notifications failed:`,
+          notifyErr,
+        );
+      }
     } catch (err) {
       summary.skipped.error += 1;
       summary.errors.push({
