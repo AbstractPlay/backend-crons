@@ -36,6 +36,16 @@ No S3 dump scan; cost scales with open challenge count, not inactive user count.
 | `INACTIVE_CHALLENGE_REVOKE_BATCH_SIZE` | unlimited | Max revokes per run (initial rollout) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | — | Web push (optional; skipped if unset) |
 
+## Preview (read-only, local)
+
+Before the first prod run, preview candidates without writes:
+
+```bash
+npm run preview-inactive-challenges -- --stage prod
+```
+
+Uses AWS profile `AbstractPlayProd` / table `abstract-play-prod`. Optional `--days 14` (default).
+
 ## Manual invoke
 
 ```bash

@@ -2,7 +2,7 @@ import { GetCommand, PutCommand, type DynamoDBDocumentClient } from '@aws-sdk/li
 import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import i18n from 'i18next';
 import { localizedGameName } from './gameDisplayName.js';
-import { isBotId } from './inactiveChallengeDiscovery.js';
+import { isBotId, isValidUserId } from './inactiveChallengeDiscovery.js';
 import {
   wantsInAppNotification,
   type InAppNotificationUserSettings,
@@ -64,8 +64,8 @@ async function loadNotificationUser(
   const data = await client.send(new GetCommand({
     TableName: tableName,
     Key: { pk: 'USER', sk: userId },
-    ProjectionExpression: 'id, #name, email, language, settings',
-    ExpressionAttributeNames: { '#name': 'name' },
+    ProjectionExpression: 'id, #name, email, #language, settings',
+    ExpressionAttributeNames: { '#name': 'name', '#language': 'language' },
   }));
   if (data.Item === undefined) {
     return undefined;
@@ -123,7 +123,7 @@ export async function notifyChallengeRevokedAcceptors(
   standing: boolean,
 ): Promise<void> {
   const acceptors = (challenge.players ?? []).filter(
-    p => p.id !== challenge.challenger.id,
+    p => isValidUserId(p.id) && p.id !== challenge.challenger.id,
   );
   if (acceptors.length === 0) {
     return;

@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   filterRevokeCandidates,
   isInactiveLastSeen,
+  isValidUserId,
 } from './inactiveChallengeDiscovery.js';
+
+describe('isValidUserId', () => {
+  it('rejects empty ids', () => {
+    expect(isValidUserId('')).toBe(false);
+    expect(isValidUserId('u1')).toBe(true);
+  });
+});
 
 describe('isInactiveLastSeen', () => {
   it('treats missing lastSeen as active', () => {

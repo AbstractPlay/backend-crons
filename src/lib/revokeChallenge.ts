@@ -7,7 +7,7 @@ import {
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { adjustShardedCounts } from './shardedMetaGameCounts.js';
-import { isBotId } from './inactiveChallengeDiscovery.js';
+import { isBotId, isValidUserId } from './inactiveChallengeDiscovery.js';
 
 export type ChallengePlayer = { id: string; name?: string };
 
@@ -36,6 +36,9 @@ export async function revokeChallengeRecord(
       ExpressionAttributeValues: { ':c': new Set([challenge.id]) },
     })));
     for (const challengee of challenge.challengees ?? []) {
+      if (!isValidUserId(challengee.id)) {
+        continue;
+      }
       if (!(await isBotId(client, tableName, challengee.id))) {
         work.push(client.send(new UpdateCommand({
           TableName: tableName,
@@ -55,7 +58,7 @@ export async function revokeChallengeRecord(
   }
 
   const acceptors = (challenge.players ?? []).filter(
-    p => p.id !== challenge.challenger.id,
+    p => isValidUserId(p.id) && p.id !== challenge.challenger.id,
   );
   for (const player of acceptors) {
     if (await isBotId(client, tableName, player.id)) {
