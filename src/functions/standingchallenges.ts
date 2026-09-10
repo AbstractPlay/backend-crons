@@ -9,6 +9,7 @@ import { Handler } from "aws-lambda";
 import { listActiveCurrentGames } from "../lib/activeGamesForUser.js";
 import { adjustShardedCounts } from "../lib/shardedMetaGameCounts.js";
 import { WriteJournal, loadItem } from "../lib/writeJournal.js";
+import { stringArraysEqual } from "../lib/standingChallengeMatch.js";
 
 const REGION = "us-east-1";
 const clnt = new DynamoDBClient({ region: REGION });
@@ -460,20 +461,3 @@ const getAllRecs = async (): Promise<StandingChallengeRec[]> => {
     return result;
 }
 
-const stringArraysEqual = (lst1: string[], lst2: string[]): boolean => {
-    if (lst1.length === lst2.length) {
-        const s1 = [...lst1].sort((a, b) => a.localeCompare(b));
-        const s2 = [...lst2].sort((a, b) => a.localeCompare(b));
-        let doesMatch = true;
-        for (let i = 0; i < s1.length; i++) {
-            if (s1[i] !== s2[i]) {
-                doesMatch = false;
-                break;
-            }
-        }
-        if (doesMatch) {
-            return true;
-        }
-    }
-    return false;
-}
