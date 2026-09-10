@@ -60,6 +60,15 @@ Example `invoke-resume.json`:
 
 Resume requires `started: false`. Tournament start is **not** exposed via node-backend queries or the admin dashboard — only this Lambda. Operational scripts: `bin/check-tournament-prod.mjs`, `bin/cleanup-tournament-prod.mjs`.
 
+## `inactive-challenge-cleanup`
+
+**Schedule:** 03:00 UTC daily  
+**Source:** [`src/functions/inactive-challenge-cleanup.ts`](../src/functions/inactive-challenge-cleanup.ts)
+
+Revokes open (`STANDINGCHALLENGE#`) and direct (`CHALLENGE`) challenges issued by players inactive ≥ 14 days (`USERS.lastSeen`). Pauses matching `REALSTANDING` presets and notifies acceptors (email, push, in-app for direct).
+
+See [Inactive challenge cleanup](/crons/inactive-challenge-cleanup/) for full detail.
+
 ## `standingchallenges`
 
 **Schedule:** 00:00 and 12:00 UTC daily  
@@ -83,6 +92,7 @@ Both functions deploy to dev stacks but **EventBridge schedules are disabled on 
 
 ```bash
 serverless invoke -f dashboard-cruft-cleanup --stage prod
+serverless invoke -f inactive-challenge-cleanup --stage prod
 serverless invoke -f starttournaments --stage prod
 serverless invoke -f standingchallenges --stage prod
 ```

@@ -36,6 +36,7 @@ custom:
       - "fs"
       - "stream-json"
       - "stream-chain"
+      - "web-push"
     exclude:
       - "@abstractplay/gameslib"
       - "@abstractplay/recranks"
@@ -419,6 +420,26 @@ functions:
           enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
           # Midnight and noon UTC every day
           schedule: cron(0 0,12 * * ? *)
+
+  inactive-challenge-cleanup:
+    handler: src/functions/inactive-challenge-cleanup.handler
+    description: Revoke challenges from issuers inactive ≥14 days; pause REALSTANDING presets
+    timeout: 300
+    memorySize: 512
+    logRetentionInDays: 30
+    layers:
+      - !Ref AbstractplayGameslibLambdaLayer
+    environment:
+      INACTIVE_CHALLENGE_MS: 1209600000
+      VAPID_PUBLIC_KEY: ${env:VAPID_PUBLIC_KEY, ''}
+      VAPID_PRIVATE_KEY: ${env:VAPID_PRIVATE_KEY, ''}
+    events:
+      - eventBridge:
+          name: abstractplay-${self:provider.stage}-inactive-challenge-cleanup
+          description: Revoke challenges from inactive issuers nightly
+          enabled: ${self:custom.scheduleEnabled.${self:provider.stage}}
+          # 3am UTC daily
+          schedule: cron(0 3 * * ? *)
 
 resources:
   Conditions:

@@ -145,6 +145,18 @@ Batch dump consumers run **daily at 03:00 UTC** and read the latest completed IO
 | **Output** | Creates/cancels tournaments, starts games via `GameFactory`, sends SES emails |
 | **Notes** | See [Live crons](/crons/live-crons/) |
 
+### `inactive-challenge-cleanup`
+
+| | |
+|---|---|
+| **Handler** | `src/functions/inactive-challenge-cleanup.ts` |
+| **Schedule** | Daily 03:00 UTC |
+| **Timeout / memory** | 300 s / 512 MB |
+| **Layer** | gameslib |
+| **Input** | Live `USERS`, `CHALLENGE`, `STANDINGCHALLENGE#`, `METAGAMES#` |
+| **Output** | Revokes stale challenges, pauses `REALSTANDING`, acceptor notifications |
+| **Notes** | See [Inactive challenge cleanup](/crons/inactive-challenge-cleanup/) |
+
 ### `standingchallenges`
 
 | | |
