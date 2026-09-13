@@ -67,7 +67,7 @@ Each record is indexed by:
 
 ### Meta statistics (`metaStats`)
 
-For each meta game UID (and variant subgroup when multiple variant combinations exist), computes two-player stats. Map keys match `batchRatingGameLabel()` output: `go`, `go (9x9|handicap)`, or `go (no variants)`.
+For each meta game UID (and variant subgroup when multiple variant combinations exist), computes two-player stats. Map keys match `batchRatingGameLabel()` output after variant canonicalization (same rules as ratings).
 
 - Game count (`n`)
 - Average and median move count (`lenAvg`, `lenMedian`)
@@ -127,7 +127,7 @@ Uses `gameinfo` from gameslib to map display names to meta UIDs.
 
 ### Ratings (`ratings`)
 
-Game keys in `ratings.highest[].game`, `glickoByGame[].game`, and `topPlayers[].game` are **meta UIDs** plus optional variant UIDs, produced by `batchRatingGameLabel()` in [`batchRatings.ts`](../src/lib/batchRatings.ts) (e.g. `go (9x9|handicap)`, `chess (no variants)`). Tournament seeding passes `tournament.metaGame` and `tournament.variants` (codes) into the same lookup.
+Game keys in `ratings.highest[].game`, `glickoByGame[].game`, and `topPlayers[].game` are **meta UIDs** plus optional variant UIDs, produced by `batchRatingGameLabel()` in [`batchRatings.ts`](../src/lib/batchRatings.ts) after [`variantUidsForBatchRating`](https://github.com/AbstractPlay/gameslib) canonicalizes record UIDs (e.g. `go (size-9)`, `akimbo (#board|#ruleset)`, `chess (no variants)`). An empty variant list on a rated game with variant **groups** is not `(no variants)`; it resolves to implicit `#group` defaults (and merges with explicit UIDs that are rating-equivalent to `[]`, such as Akimbo `size-13`). Tournament seeding passes `tournament.metaGame` and `tournament.variants` through the same canonicalization before lookup.
 
 For each meta game UID (and variant subgroup), runs three rating engines from `@abstractplay/recranks`:
 

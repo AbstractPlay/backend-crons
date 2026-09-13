@@ -18,6 +18,7 @@ import type { UserGameRating } from "types/stats/UserGameRating.js";
 import type { UserNumList } from "types/stats/UserNumList.js";
 import type { UserNumber } from "types/stats/UserNumber.js";
 import type { TwoPlayerStats } from "types/stats/TwoPlayerStats.js";
+import { gameinfo, variantUidsForBatchRating } from "@abstractplay/gameslib";
 import { parseRecordGameId, variantComboKey } from "../utils/recordGameId.js";
 
 export const GLICKO_PERIOD_MS = 60 * 24 * 60 * 60 * 1000;
@@ -498,7 +499,7 @@ export function metaGameFromRecord(
     return rec.header.game.name;
 }
 
-export function variantUidsFromRecord(
+function rawVariantUidsFromRecord(
     rec: APGameRecord,
     fallback?: RecordGameIdFallback,
 ): string[] {
@@ -514,6 +515,20 @@ export function variantUidsFromRecord(
         return [...rec.header.game.variants].sort();
     }
     return [];
+}
+
+export function variantUidsFromRecord(
+    rec: APGameRecord,
+    fallback?: RecordGameIdFallback,
+): string[] {
+    const raw = rawVariantUidsFromRecord(rec, fallback);
+    const metaUid = metaGameFromRecord(rec, fallback);
+    const defs = gameinfo.get(metaUid)?.variants;
+    if (defs === undefined || defs.length === 0) {
+        return raw;
+    }
+    const playerCount = rec.header.players.length > 0 ? rec.header.players.length : 2;
+    return variantUidsForBatchRating(metaUid, playerCount, raw);
 }
 
 export function variantComboFromRecord(
