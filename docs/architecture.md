@@ -76,7 +76,7 @@ The service role grants:
 
 | Package | Used by | Purpose |
 |---------|---------|---------|
-| `@abstractplay/gameslib` | records, records-ttm, records-move-times, summarize, starttournaments | `GameFactory`, `gameinfo`, `genRecord`, `addResource` |
+| `@abstractplay/gameslib` | records, records-ttm, records-move-times, summarize, player-summary-fanout, rating-change-notifications, starttournaments | `GameFactory`, `gameinfo`, `genRecord`, `addResource` |
 | `@abstractplay/recranks` | records, summarize | `APGameRecord`, ELO/Glicko2/Trueskill raters |
 | `ion-js`, `fflate` | dump consumers | Parse gzipped ION export files |
 | `i18next` | records, starttournaments | Email copy (`apback` namespace) |
