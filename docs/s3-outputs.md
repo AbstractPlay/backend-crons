@@ -54,8 +54,9 @@ Parse/decode helpers: `parseRecordGameId`, `encodeRecordGameId`, `variantComboKe
 | Key shape | Example |
 |-----------|---------|
 | Meta only | `go` |
-| Meta + variants | `go (9x9\|handicap)` |
-| Explicit no variants | `chess (no variants)` |
+| Meta + variants | `go (size-9)` |
+| Implicit defaults (variant groups) | `akimbo (#board\|#ruleset)` — empty `gameid` variant segment uses `#group` sentinels via gameslib `variantUidsForBatchRating` |
+| Explicit no variants | `chess (no variants)` — only when the meta game has **no** `gameinfo.variants` dimension |
 
 Front-end clients resolve UIDs to localized display names via gameslib (`src/lib/summaryGameKeys.js` in the front repo).
 

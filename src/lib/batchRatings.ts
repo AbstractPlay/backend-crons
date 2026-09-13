@@ -1,3 +1,4 @@
+import { gameinfo, variantUidsForBatchRating } from "@abstractplay/gameslib";
 import type { GlickoStats } from "types/stats/GlickoStats.js";
 import type { UserGameRating } from "types/stats/UserGameRating.js";
 import {
@@ -51,8 +52,14 @@ export function lookupBatchRating(
     metaUid: string,
     variants: string[],
     userId: string,
+    playerCount = 2,
 ): UserGameRating {
-    const game = batchRatingGameLabel(metaUid, variants);
+    const defs = gameinfo.get(metaUid)?.variants;
+    const canonical =
+        defs !== undefined && defs.length > 0
+            ? variantUidsForBatchRating(metaUid, playerCount, variants)
+            : variants;
+    const game = batchRatingGameLabel(metaUid, canonical);
     const row = highest.find((r) => r.user === userId && r.game === game);
     if (row !== undefined) {
         return row;
