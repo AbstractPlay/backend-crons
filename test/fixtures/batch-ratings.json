@@ -34,7 +34,7 @@
     },
     {
       "user": "alice",
-      "game": "go (9x9|handicap)",
+      "game": "go (#board|#ruleset)",
       "rating": 1400,
       "wld": [3, 1, 0],
       "glicko": {
@@ -50,7 +50,7 @@
     },
     {
       "user": "carol",
-      "game": "go (9x9|handicap)",
+      "game": "go (#board|#ruleset)",
       "rating": 1300,
       "wld": [2, 2, 0],
       "glicko": {
