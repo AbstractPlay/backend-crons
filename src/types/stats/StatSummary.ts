@@ -77,4 +77,8 @@ export type StatSummary = {
     activeGeoStats: GeoStats[];
     rivalries: AnonymizedRivalry[];
     seasonality: SeasonalityStats;
+    pastDisplayNames: {
+        user: string;
+        names: string[];
+    }[];
 };

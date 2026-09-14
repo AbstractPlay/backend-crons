@@ -62,6 +62,7 @@ export type SummarizeScanState = {
     playerCountMixByGame: Map<string, Map<string, number>>;
     hoursPerGames: HoursPerGameInput[];
     recentCompleterIDs: Set<string>;
+    pastNamesByUser: Map<string, Set<string>>;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -92,7 +93,27 @@ export function createSummarizeScanState(): SummarizeScanState {
         playerCountMixByGame: new Map(),
         hoursPerGames: [],
         recentCompleterIDs: new Set(),
+        pastNamesByUser: new Map(),
     };
+}
+
+export function buildPastDisplayNamesList(
+    pastNamesByUser: Map<string, Set<string>>,
+    currentDisplayNames: Map<string, string>,
+): { user: string; names: string[] }[] {
+    const result: { user: string; names: string[] }[] = [];
+    for (const [user, names] of pastNamesByUser) {
+        const current = currentDisplayNames.get(user)?.trim();
+        const filtered = [...names]
+            .map((n) => n.trim())
+            .filter((n) => n.length > 0 && n !== current);
+        const unique = [...new Set(filtered)].sort((a, b) => a.localeCompare(b));
+        if (unique.length > 0) {
+            result.push({ user, names: unique });
+        }
+    }
+    result.sort((a, b) => a.user.localeCompare(b.user));
+    return result;
 }
 
 function incrementMapCount(map: Map<string, number>, key: string, delta = 1): void {
@@ -142,6 +163,17 @@ export function scanRecord(
 
     const playerIdsInRec: string[] = [];
     for (const p of rec.header.players) {
+        if (p.userid !== undefined && typeof p.name === "string") {
+            const embeddedName = p.name.trim();
+            if (embeddedName.length > 0) {
+                let nameSet = state.pastNamesByUser.get(p.userid);
+                if (nameSet === undefined) {
+                    nameSet = new Set();
+                    state.pastNamesByUser.set(p.userid, nameSet);
+                }
+                nameSet.add(embeddedName);
+            }
+        }
         if (p.userid === undefined) {
             continue;
         }

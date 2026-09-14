@@ -839,6 +839,7 @@ export function splitStatSummary(
                 players: summary.histograms.players,
                 playerTimeouts: summary.histograms.playerTimeouts,
             },
+            pastDisplayNames: summary.pastDisplayNames,
         },
         ratings: {
             generated,
@@ -865,6 +866,7 @@ export type PlayerSummaryIndexes = {
     glickoSite: Map<string, GlickoSiteEntry>;
     avg: Map<string, number>;
     weighted: Map<string, number>;
+    pastDisplayNames: Map<string, string[]>;
 };
 
 export function buildPlayerSummaryIndexesFromTiers(
@@ -903,6 +905,9 @@ export function buildPlayerSummaryIndexesFromTiers(
         glickoSite: new Map(ratingsTier.ratings.glickoSite.map((row) => [row.user, row])),
         avg: new Map(ratingsTier.ratings.avg.map((row) => [row.user, row.rating])),
         weighted: new Map(ratingsTier.ratings.weighted.map((row) => [row.user, row.rating])),
+        pastDisplayNames: new Map(
+            (playersTier.pastDisplayNames ?? []).map((row) => [row.user, row.names]),
+        ),
     };
 }
 
@@ -916,6 +921,7 @@ export function buildPlayerSummaryIndexes(summary: StatSummary): PlayerSummaryIn
                 players: summary.histograms.players,
                 playerTimeouts: summary.histograms.playerTimeouts,
             },
+            pastDisplayNames: summary.pastDisplayNames,
         },
         {
             generated: "",
@@ -1035,7 +1041,17 @@ export function toPlayerSummarySlice(
         ratings.weighted = weighted;
     }
 
-    return { generated, user, players, histograms, ratings };
+    const pastDisplayNames = indexes.pastDisplayNames.get(user);
+    return {
+        generated,
+        user,
+        ...(pastDisplayNames !== undefined && pastDisplayNames.length > 0
+            ? { pastDisplayNames }
+            : {}),
+        players,
+        histograms,
+        ratings,
+    };
 }
 
 /** Keys present on the monolith that are partitioned across tier files. */
@@ -1062,6 +1078,7 @@ export const STAT_SUMMARY_PARTITIONED_KEYS = [
     "plays",
     "topPlayers",
     "players",
+    "pastDisplayNames",
     "ratings",
     "histograms",
 ] as const;
