@@ -5,6 +5,7 @@ import {
     finalizeRivalryPairs,
 } from "./summarizeHelpers.js";
 import {
+    buildPastDisplayNamesList,
     buildPlayerStats,
     createSummarizeScanState,
     scanRecord,
@@ -20,6 +21,8 @@ function minimalRec(opts: {
     dateEnd: string;
     p1: string;
     p2: string;
+    p1Name?: string;
+    p2Name?: string;
 }): APGameRecord {
     return {
         header: {
@@ -29,8 +32,8 @@ function minimalRec(opts: {
             "date-end": opts.dateEnd,
             "date-generated": opts.dateEnd,
             players: [
-                { name: "A", userid: opts.p1, result: 1 },
-                { name: "B", userid: opts.p2, result: 0 },
+                { name: opts.p1Name ?? "A", userid: opts.p1, result: 1 },
+                { name: opts.p2Name ?? "B", userid: opts.p2, result: 0 },
             ],
         },
         moves: [["e4", "e5"], ["d4", "d5"]],
@@ -65,5 +68,40 @@ describe("summarizeScan", () => {
         }
         const pairs = finalizeRivalryPairs(counts, 2);
         expect(pairs).toEqual([{ userA: "alice", userB: "bob", n: 2 }]);
+    });
+
+    it("buildPastDisplayNamesList excludes current USERS name", () => {
+        const state = createSummarizeScanState();
+        const gameInfo = new Map();
+        scanRecord(
+            state,
+            minimalRec({
+                gameid: CHESS_GAMEID,
+                gameName: "Chess",
+                dateEnd: "2024-01-01T00:00:00Z",
+                p1: "alice",
+                p2: "bob",
+                p1Name: "Alice Old",
+            }),
+            gameInfo,
+        );
+        scanRecord(
+            state,
+            minimalRec({
+                gameid: CHESS_GAMEID_2,
+                gameName: "Chess",
+                dateEnd: "2024-01-02T00:00:00Z",
+                p1: "alice",
+                p2: "bob",
+                p1Name: "Alice Current",
+            }),
+            gameInfo,
+        );
+        const current = new Map([
+            ["alice", "Alice Current"],
+            ["bob", "B"],
+        ]);
+        const list = buildPastDisplayNamesList(state.pastNamesByUser, current);
+        expect(list).toEqual([{ user: "alice", names: ["Alice Old"] }]);
     });
 });

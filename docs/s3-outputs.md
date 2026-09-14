@@ -68,9 +68,9 @@ The **monolith** (`_summary.json`) is typed as `StatSummary` in [`src/types/stat
 |-----|------|------|
 | `_summary.json` | `StatSummary` | Full superset; backward compatible download / batch consumers |
 | `_summary-site.json` | `StatSummarySite` | Site stats, geo, histograms (site keys), `metaStats`, `plays`, `topPlayers` |
-| `_summary-players.json` | `StatSummaryPlayers` | `players.*` + `histograms.players` / `playerTimeouts` |
+| `_summary-players.json` | `StatSummaryPlayers` | `players.*` + `histograms.players` / `playerTimeouts` + `pastDisplayNames` (per-user alias list from record headers) |
 | `_summary-ratings.json` | `StatSummaryRatings` | `ratings.*` including Glicko aggregates |
-| `player/{userId}-summary.json` | `PlayerSummarySlice` | One user's Tier 1/2 subset |
+| `player/{userId}-summary.json` | `PlayerSummarySlice` | One user's Tier 1/2 subset; optional `pastDisplayNames` (distinct embedded record names excluding current `USERS.name`) |
 
 All JSON objects use `Content-Type: application/json`. Each tier/slice includes `generated` (ISO timestamp).
 

@@ -46,6 +46,7 @@ import {
     buildPlayStats,
     buildPlayerStats,
     buildSiteHistograms,
+    buildPastDisplayNamesList,
     createSummarizeScanState,
     scanRecord,
     type GameInfoFlags,
@@ -356,6 +357,11 @@ export const handler: Handler = async () => {
         pairs: enrichRivalryPairsWithDisplayNames(identifiedRivalryPairs, userDisplayNames),
     };
 
+    const pastDisplayNames = buildPastDisplayNamesList(
+        scanState.pastNamesByUser,
+        userDisplayNames,
+    );
+
     const summary: StatSummary = {
         numGames,
         numPlayers,
@@ -410,6 +416,7 @@ export const handler: Handler = async () => {
         activeGeoStats,
         rivalries: publicRivalries,
         seasonality,
+        pastDisplayNames,
     };
 
     const opsCmd = new PutObjectCommand({

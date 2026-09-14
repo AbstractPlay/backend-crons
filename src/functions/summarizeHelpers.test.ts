@@ -122,6 +122,7 @@ const minimalStatSummary = (overrides: Partial<StatSummary> = {}): StatSummary =
     geoStats: [],
     activeGeoStats: [],
     rivalries: [],
+    pastDisplayNames: [],
     seasonality: {
         movesByDow: Array.from({ length: 7 }, () => 0),
         playersByDow: Array.from({ length: 7 }, () => 0),
@@ -182,6 +183,15 @@ describe("splitStatSummary", () => {
 });
 
 describe("toPlayerSummarySlice", () => {
+    it("includes pastDisplayNames when present in indexes", () => {
+        const summary = minimalStatSummary({
+            pastDisplayNames: [{ user: "a", names: ["Alice Old"] }],
+        });
+        const indexes = buildPlayerSummaryIndexes(summary);
+        const slice = toPlayerSummarySlice("a", "2026-01-02T00:00:00.000Z", indexes);
+        expect(slice.pastDisplayNames).toEqual(["Alice Old"]);
+    });
+
     it("returns only the requested user's rows", () => {
         const summary = minimalStatSummary();
         const generated = "2026-01-02T00:00:00.000Z";

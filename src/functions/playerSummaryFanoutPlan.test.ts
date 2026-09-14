@@ -74,6 +74,7 @@ const minimalSummary = (): StatSummary => ({
     geoStats: [],
     activeGeoStats: [],
     rivalries: [],
+    pastDisplayNames: [],
     seasonality: {
         movesByDow: Array.from({ length: 7 }, () => 0),
         playersByDow: Array.from({ length: 7 }, () => 0),

@@ -71,6 +71,10 @@ export type StatSummaryPlayers = {
         players: UserNumList[];
         playerTimeouts: UserNumList[];
     };
+    pastDisplayNames?: {
+        user: string;
+        names: string[];
+    }[];
 };
 
 export type StatSummaryRatings = {
@@ -90,6 +94,7 @@ export type StatSummaryRatings = {
 export type PlayerSummarySlice = {
     generated: string;
     user: string;
+    pastDisplayNames?: string[];
     players: {
         allPlays?: number;
         eclectic?: number;
