@@ -1,6 +1,10 @@
 service: abstract-play-backend-crons
+org: abstractplay
 
-frameworkVersion: "3"
+frameworkVersion: "4"
+
+build:
+  esbuild: false
 
 custom:
   scheduleEnabled:
