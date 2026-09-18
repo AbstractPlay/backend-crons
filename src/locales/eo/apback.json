@@ -13,7 +13,7 @@
     "GameLink": "Vidu la ludon ĉe https://play.abstractplay.com/move/{{metaGame}}/0/{{gameId}}.",
     "GameOverBody": "Via ludo de {{- metaGame}} finiĝis.",
     "GameOverLink": "Por pliaj detaloj, inkluzive de arkivebla ludprotokolo, vizitu https://play.abstractplay.com/move/{{metaGame}}/1/{{gameID}}.",
-    "GameOverRating": "Via nova poentaro estas {{rating}}.",
+    "GameOverRating": "Via nova pritakso estas {{rating}}.",
     "GameOverResult_win": "Vi gajnis!",
     "GameOverResult_lose": "Vi malgajnis.",
     "GameOverResult_draw": "Estis remizo.",
