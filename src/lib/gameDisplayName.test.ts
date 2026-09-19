@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import i18n from 'i18next';
 import { gameinfo } from '@abstractplay/gameslib';
 import { localizedGameName } from './gameDisplayName.js';
-import { changeLanguageForPlayer, initi18n } from '../functions/starttournaments.js';
+import { changeLanguageForPlayer, initApbackI18n } from './apbackI18n.js';
 
 describe('tournament email i18n', () => {
   beforeEach(async () => {
     if (i18n.isInitialized) {
       await i18n.changeLanguage('en');
     }
-    await initi18n('en');
+    await initApbackI18n('en');
   });
 
   it('loads apgames bundles for managed languages', () => {

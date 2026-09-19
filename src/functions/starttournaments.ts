@@ -7,12 +7,12 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCo
 import { v4 as uuid } from 'uuid';
 import { gameinfo, GameFactory, GameBase, GameBaseSimultaneous, type APGamesInformation } from '@abstractplay/gameslib';
 import { localizedGameName } from '../lib/gameDisplayName.js';
-import { applyGameslibBundlesTo, GAMESLIB_APGAMES_LANGS } from '../lib/gameslibLocales.js';
+import {
+  changeLanguageForPlayer,
+  initApbackI18n,
+} from '../lib/apbackI18n.js';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import i18n from 'i18next';
-import en from '../locales/en/apback.json';
-import fr from '../locales/fr/apback.json';
-import it from '../locales/it/apback.json';
 import { Handler } from "aws-lambda";
 import { assignTournamentPlayerRatings } from "../lib/batchRatings.js";
 import { enqueueGameStartNotifications } from "../lib/gameStartNotifications.js";
@@ -45,25 +45,6 @@ type StartTournamentsEvent = {
   tournamentId?: string;
   resume?: boolean;
 };
-
-const APBACK_BY_LANG = { en, fr, it } as const;
-const REGISTERED_LANGUAGES = [...new Set([
-  ...Object.keys(APBACK_BY_LANG),
-  ...GAMESLIB_APGAMES_LANGS,
-])];
-
-function resolvePlayerLanguage(language: string | undefined): string {
-  if (language && REGISTERED_LANGUAGES.includes(language)) {
-    return language;
-  }
-  if (language) {
-    const lower = language.toLowerCase();
-    if (lower === 'es' || lower.startsWith('es-')) {
-      return 'es-US';
-    }
-  }
-  return 'en';
-}
 
 const REGION = "us-east-1";
 const sesClient = new SESClient({ region: REGION });
@@ -465,7 +446,7 @@ async function startTournament(
       return;
     }
     // Send email to players
-    await initi18n('en');
+    await initApbackI18n('en');
     for (let player of playersFull) {
       await changeLanguageForPlayer(player);
       const metaGameName = localizedGameName(tournament.metaGame);
@@ -749,7 +730,7 @@ async function startTournament(
     }
 
     // Send e-mails to participants (best-effort; tournament is committed)
-    await initi18n('en');
+    await initApbackI18n('en');
     for (const player of playersFull2) {
         console.log(`Determining whether to send tournamentStart email to the following player:\n${JSON.stringify(player)}`);
         // eslint-disable-next-line no-prototype-builtins
@@ -826,7 +807,7 @@ async function startTournament(
       console.log(`Unable to get removed players for tournament ${tournament.id} from table ${process.env.ABSTRACT_PLAY_TABLE}. Error: ${error}`);
       return;
     }
-    await initi18n('en');
+    await initApbackI18n('en');
     for (const player of playersFull) {
       try {
         await changeLanguageForPlayer(player);
@@ -847,14 +828,6 @@ async function startTournament(
     }
   }
   return returnvalue;
-}
-
-export async function changeLanguageForPlayer(player: { language: string | undefined; }) {
-  const lng = resolvePlayerLanguage(player.language);
-  if (i18n.language !== lng) {
-    await i18n.changeLanguage(lng);
-    console.log(`changed language to ${lng}`);
-  }
 }
 
 export function createSendEmailCommand(toAddress: string, player: any, subject: any, body: string) {
@@ -880,26 +853,6 @@ export function createSendEmailCommand(toAddress: string, player: any, subject: 
     },
     Source: "abstractplay@mail.abstractplay.com"
   });
-}
-
-export async function initi18n(language: string) {
-  await i18n.init({
-    lng: language,
-    fallbackLng: 'en',
-    debug: true,
-    resources: Object.fromEntries(
-      REGISTERED_LANGUAGES.map((lng) => [
-        lng,
-        {
-          ...(lng in APBACK_BY_LANG
-            ? { translation: APBACK_BY_LANG[lng as keyof typeof APBACK_BY_LANG] }
-            : {}),
-        },
-      ]),
-    ),
-  });
-
-  applyGameslibBundlesTo(i18n);
 }
 
 // Handles errors during GetItem execution. Use recommendations in error messages below to

@@ -37,7 +37,7 @@ Queries and updates `TOURNAMENT` records on `abstract-play-{stage}`. Uses retry 
 
 ### Email / i18n
 
-Uses i18next with the `apback` namespace. Locale files in [`src/locales/`](https://github.com/AbstractPlay/backend-crons/tree/develop/src/locales) (en, fr, it). Email templates reference tournament name, meta game, and player lists.
+Uses i18next with `apback` strings under `src/locales/` (exported from node-backend at build/CI time; see [Getting started](/crons/getting-started/#email-strings-apback)). Email templates reference tournament name, meta game, and player lists.
 
 ### Related backend docs
 
@@ -58,7 +58,7 @@ Example `invoke-resume.json`:
 {"tournamentId":"<uuid>","resume":true}
 ```
 
-Resume requires `started: false`. Tournament start is **not** exposed via node-backend queries or the admin dashboard — only this Lambda. Operational scripts: `bin/check-tournament-prod.mjs`, `bin/cleanup-tournament-prod.mjs`.
+Resume requires `started: false`. Tournament start is **not** exposed via node-backend queries or the admin dashboard — only this Lambda. Ad-hoc prod ops scripts live under `bin/` (gitignored, local only), e.g. `bin/check-tournament-prod.mjs`, `bin/cleanup-tournament-prod.mjs`.
 
 ## `inactive-challenge-cleanup`
 

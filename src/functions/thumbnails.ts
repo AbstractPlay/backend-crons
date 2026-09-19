@@ -13,7 +13,6 @@ import { decompressGameState } from "../utils/gameState.js";
 import { skipCompletedGameWithoutState } from "../utils/completedGameRec.js";
 import i18next from "i18next";
 import type { i18n } from "i18next";
-import enBack from "../locales/en/apback.json";
 import type { BasicRec, GameRec } from "types/index.js";
 
 const REGION = "us-east-1";
@@ -32,16 +31,9 @@ export const handler: Handler = async () => {
     const i18nInstance = i18next as unknown as i18n;
     await i18nInstance
         .init({
-            ns: ["apback"],
-            defaultNS: "apback",
             lng: "en",
             fallbackLng: "en",
             debug: true,
-            resources: {
-                en: {
-                    apback: enBack,
-                },
-            },
         })
         .then(async () => {
             if (!i18nInstance.isInitialized) {

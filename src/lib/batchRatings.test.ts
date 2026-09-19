@@ -4,10 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { UserGameRating } from "types/stats/UserGameRating.js";
 import {
+    assignTournamentPlayerRatings,
     batchRatingGameLabel,
     buildPlayerCountsByUid,
     compareBatchRatings,
     defaultGlickoPrior,
+    GLICKO_PRIOR_RATING_LOW,
     lookupBatchRating,
     parseBatchRatingGameLabel,
 } from "./batchRatings.js";
@@ -130,5 +132,33 @@ describe("buildPlayerCountsByUid", () => {
     it("counts distinct users per meta uid", () => {
         const counts = buildPlayerCountsByUid(fixture.highest);
         expect(counts).toEqual({ chess: 2, go: 2 });
+    });
+});
+
+describe("assignTournamentPlayerRatings", () => {
+    it("orders players by glicko ratingLow descending", () => {
+        const players = [
+            { playerid: "bob", playername: "Bob" },
+            { playerid: "alice", playername: "Alice" },
+            { playerid: "unknown", playername: "Unknown" },
+        ];
+        assignTournamentPlayerRatings(players, fixture.highest, "chess", []);
+        players.sort((a, b) => b.rating! - a.rating!);
+        expect(players.map((p) => p.playerid)).toEqual(["alice", "bob", "unknown"]);
+        expect(players[0]!.rating).toBe(1200);
+        expect(players[1]!.rating).toBe(1090);
+        expect(players[2]!.rating).toBe(GLICKO_PRIOR_RATING_LOW);
+    });
+
+    it("uses variant-aware game labels", () => {
+        const players = [
+            { playerid: "carol" },
+            { playerid: "alice" },
+        ];
+        assignTournamentPlayerRatings(players, fixture.highest, "go", ["handicap", "9x9"]);
+        players.sort((a, b) => b.rating! - a.rating!);
+        expect(players[0]!.playerid).toBe("alice");
+        expect(players[0]!.rating).toBe(1200);
+        expect(players[1]!.rating).toBe(1170);
     });
 });
