@@ -1,7 +1,8 @@
 {
   "name": "abstractplay-backend-crons",
   "version": "1.0.0-beta",
-  "description": "node.js lambdas of the periodic cron jobs",
+  "description": "ARCHIVED — use AbstractPlay/node-backend crons/ workspace",
+  "deprecated": "Moved to https://github.com/AbstractPlay/node-backend/tree/develop/crons",
   "type": "module",
   "scripts": {
     "clean": "rimraf dist .esbuild .serverless",

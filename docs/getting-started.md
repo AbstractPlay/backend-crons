@@ -1,5 +1,7 @@
 # Getting started
 
+> **Archived repository.** Clone [AbstractPlay/node-backend](https://github.com/AbstractPlay/node-backend), then use the `crons/` workspace (`npm run test:crons`, `npm run build -w abstractplay-backend-crons`). Published guide: [Getting started](/crons/getting-started/) on the docs site (synced from monorepo).
+
 ## Prerequisites
 
 - **Node.js 24** (matches `serverless.yml` runtime)
