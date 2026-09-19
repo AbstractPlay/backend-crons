@@ -4,29 +4,19 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { SESClient } from '@aws-sdk/client-ses';
 import type { Handler } from 'aws-lambda';
-import i18n from 'i18next';
 import {
   discoverInactiveIssuerChallenges,
   isBotId,
   issuerStillInactive,
 } from '../lib/inactiveChallengeDiscovery.js';
+import { initApbackI18n } from '../lib/apbackI18n.js';
 import {
   notifyChallengeRevokedAcceptors,
   toRevokeChallengeRecord,
 } from '../lib/challengeRevokedNotifications.js';
 import { pauseMatchingRealStandingEntries } from '../lib/pauseRealStanding.js';
 import { revokeChallengeRecord } from '../lib/revokeChallenge.js';
-import en from '../locales/en/apback.json';
-import fr from '../locales/fr/apback.json';
-import it from '../locales/it/apback.json';
-import { applyGameslibBundlesTo, GAMESLIB_APGAMES_LANGS } from '../lib/gameslibLocales.js';
 import type { ChallengeForStandingMatch } from '../lib/standingChallengeMatch.js';
-
-const APBACK_BY_LANG = { en, fr, it } as const;
-const REGISTERED_LANGUAGES = [...new Set([
-  ...Object.keys(APBACK_BY_LANG),
-  ...GAMESLIB_APGAMES_LANGS,
-])];
 
 const REGION = 'us-east-1';
 const DEFAULT_INACTIVE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -48,24 +38,6 @@ type Summary = {
   errors: { challengeId: string; message: string }[];
 };
 
-async function initI18n(): Promise<void> {
-  await i18n.init({
-    lng: 'en',
-    fallbackLng: 'en',
-    resources: Object.fromEntries(
-      REGISTERED_LANGUAGES.map((lng) => [
-        lng,
-        {
-          ...(lng in APBACK_BY_LANG
-            ? { translation: APBACK_BY_LANG[lng as keyof typeof APBACK_BY_LANG] }
-            : {}),
-        },
-      ]),
-    ),
-  });
-  applyGameslibBundlesTo(i18n);
-}
-
 export const handler: Handler = async () => {
   const tableName = process.env.ABSTRACT_PLAY_TABLE;
   if (tableName === undefined) {
@@ -81,7 +53,7 @@ export const handler: Handler = async () => {
 
   const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }));
   const ses = new SESClient({ region: REGION });
-  await initI18n();
+  await initApbackI18n();
 
   const summary: Summary = {
     inactiveUsers: 0,

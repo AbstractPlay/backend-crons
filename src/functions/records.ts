@@ -11,7 +11,6 @@ import i18next from "i18next";
 import type { i18n } from "i18next";
 import enApgames from "@abstractplay/gameslib/locales/en/apgames.json" with { type: "json" };
 import enApresults from "@abstractplay/gameslib/locales/en/apresults.json" with { type: "json" };
-import enBack from "../locales/en/apback.json";
 import { decompressGameState } from "../utils/gameState.js";
 import { encodeRecordGameId } from "../utils/recordGameId.js";
 import { resolveGameVariantUids } from "../utils/resolveGameVariants.js";
@@ -31,16 +30,9 @@ export const handler: Handler = async (event: any, context?: any) => {
   const i18nInstance = i18next as unknown as i18n;
   await (i18nInstance
   .init({
-    ns: ["apback"],
-    defaultNS: "apback",
     lng: "en",
     fallbackLng: "en",
     debug: true,
-    resources: {
-        en: {
-            apback: enBack,
-        }
-    }
   })
   .then(async function() {
     if (!i18nInstance.isInitialized) {

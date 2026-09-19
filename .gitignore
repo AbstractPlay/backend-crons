@@ -9,3 +9,7 @@ jspm_packages
 .vscode/
 bin/*
 dist/
+
+# Generated from node-backend (see src/locales/README.md)
+src/locales/**
+!src/locales/README.md

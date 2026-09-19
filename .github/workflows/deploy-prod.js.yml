@@ -35,6 +35,12 @@ jobs:
     - uses: actions/checkout@v4
       with:
         ref: "main"
+    - uses: actions/checkout@v4
+      with:
+        repository: AbstractPlay/node-backend
+        ref: main
+        path: node-backend
+        token: ${{ secrets.PAT_READ_PACKAGES }}
     - uses: actions/setup-node@v4
       with:
         node-version: 24
@@ -61,6 +67,9 @@ jobs:
 
     - name: Install NPM dependencies
       run: npm ci
+
+    - name: Export apback locales from node-backend
+      run: NODE_BACKEND_ROOT=./node-backend npm run sync-apback-locales
 
     - name: Validate ci-deps manifests
       run: npx ap-check-ci-deps
