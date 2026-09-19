@@ -1,67 +1,14 @@
-name: Test
+# Retired: use node-backend job test-crons (lint, vitest, layers).
+name: Test (retired)
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
   workflow_dispatch:
 
-concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  test:
+  retired:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/checkout@v4
-        with:
-          repository: AbstractPlay/node-backend
-          ref: ${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
-          path: node-backend
-          token: ${{ secrets.PAT_READ_PACKAGES }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Pin npm
-        run: npm install -g npm@11.6.2
-
-      - name: Create .npmrc
-        run: echo "@abstractplay:registry=https://npm.pkg.github.com/" > .npmrc
-      - run: echo "//npm.pkg.github.com/:_authToken=${{secrets.PAT_READ_PACKAGES}}" >> .npmrc
-
-      - name: Reject merge conflict markers in dep files
+      - name: Use node-backend monorepo
         run: |
-          if grep -r '^<<<<<<<' package.json package-lock.json ci-deps.dev.json ci-deps.prod.json 2>/dev/null; then
-            echo "Conflict markers found in dependency files"
-            exit 1
-          fi
-
-      - name: Install NPM dependencies
-        run: npm ci
-
-      - name: Export apback locales from node-backend
-        run: NODE_BACKEND_ROOT=./node-backend npm run sync-apback-locales
-
-      - name: Validate ci-deps manifests
-        run: npx ap-check-ci-deps
-
-      - name: Install pinned AP dependencies
-        run: npx ap-install-deps --stage dev
-
-      - name: Verify lockfile matches ci-deps
-        run: npx ap-check-ci-deps --stage dev --strict
-
-      - name: Build
-        run: npm run build
-
-      - name: Test
-        run: npm test
-
-      - name: Test Lambda layers
-        run: npm run test:layers
+          echo "::error::This repository is archived. Run npm run test:crons and npm run test:crons:layers in https://github.com/AbstractPlay/node-backend."
+          exit 1

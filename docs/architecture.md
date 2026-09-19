@@ -2,7 +2,9 @@
 
 ## Overview
 
-[backend-crons](https://github.com/AbstractPlay/backend-crons) is a Serverless Framework v3 service (`abstract-play-backend-crons`) deployed to AWS `us-east-1`. All functions are Node.js 20 Lambdas triggered by EventBridge cron rules (prod only).
+> **Source of truth:** [node-backend `crons/`](https://github.com/AbstractPlay/node-backend/tree/develop/crons) (this repo is archived).
+
+[backend-crons](https://github.com/AbstractPlay/backend-crons) was a Serverless Framework service (`abstract-play-backend-crons`) deployed to AWS `us-east-1`. All functions are Node.js 20 Lambdas triggered by EventBridge cron rules (prod only).
 
 There is no API Gateway — these are batch and maintenance jobs only.
 

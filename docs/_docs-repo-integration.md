@@ -1,14 +1,7 @@
-# Docs repository integration
+# Docs repository integration (historical)
 
-Integration with the [AbstractPlay/docs](https://github.com/AbstractPlay/docs) repository:
+Crons documentation is no longer synced from this repository.
 
-- Submodule: `vendor/backend-crons` → `https://github.com/AbstractPlay/backend-crons.git` (`develop` / `main`)
-- Prebuild: `syncDocs("backend-crons", "crons", false)`
-- Site nav: **Crons** section at `/crons/`
-- Deploy workflows fetch `vendor/backend-crons` with renderer, gameslib, node-backend, and recranks
+[AbstractPlay/docs](https://github.com/AbstractPlay/docs) vendors **node-backend** only and prebuilds **`vendor/node-backend/crons/docs`** → site prefix `/crons/`. The `vendor/backend-crons` submodule was removed with the monorepo merge.
 
-Local prebuild falls back to a sibling `../backend-crons` checkout when the submodule does not yet contain `/docs` (e.g. before docs land on `develop`).
-
-Published URL prefix: `/crons/` (e.g. `/crons/pipeline/`).
-
-Docs rebuild trigger: unconditional `dep_update_dev` / `dep_update_prod` dispatch on push deploy (gameslib/renderer pattern).
+Maintainer notes for the current wiring: [node-backend `crons/docs/_docs-repo-integration.md`](https://github.com/AbstractPlay/node-backend/blob/develop/crons/docs/_docs-repo-integration.md).

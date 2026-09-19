@@ -1,8 +1,10 @@
 # Backend Crons
 
+> **Archived:** active code and docs live in [node-backend `crons/`](https://github.com/AbstractPlay/node-backend/tree/develop/crons). The pages below describe the same system; the published site is built from `node-backend/crons/docs/`.
+
 Scheduled AWS Lambda jobs for Abstract Play: DynamoDB exports, static game records on S3, site-wide analytics, and live tournament/challenge automation.
 
-This repo complements [node-backend](/backend/) — the API writes live game state to DynamoDB; crons read that data (via daily exports or live queries) and publish derived artifacts to S3 and CloudFront.
+This stack complements [node-backend](/backend/) — the API writes live game state to DynamoDB; crons read that data (via daily exports or live queries) and publish derived artifacts to S3 and CloudFront.
 
 ## Documentation
 
